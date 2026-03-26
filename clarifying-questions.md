@@ -34,10 +34,7 @@ These need to be answered before or during development to avoid building assumpt
 
 ## Matchup Selection & Queue
 
-**Q10.** How does the **queue** system work? Specifically:
-  - Is it a general pool queue (first two available players get matched)?
-  - Or a challenge system (Player A challenges Player B specifically)?
-  - Or both?
+**Q10.** ✅ Queue is **FIFO, general pool, private.** When a player joins the queue, they are matched with the next player already waiting. Queue membership is not visible to other players (only mods via `/admin-view-queue`). This prevents cherry-picking. Challenge-based matching is not part of the design.
 
 **Q11.** Stadium mentioned the bot should pick the "least disadvantaged matchup" between two players' builds. How should disadvantage be quantified? Options:
   - a) Use the matchup win-rate data from the DFC/TDL historical stats
@@ -98,6 +95,33 @@ These need to be answered before or during development to avoid building assumpt
 **Q24.** Should the bot auto-announce anything? (e.g., match results to #results, ladder updates, season start/end)
 
 **Q25.** Should the bot DM players for pending confirmations or queue status?
+
+---
+
+## Queue, Cadence & Warning System
+
+**Q30.** Are all registered ladder players **always** considered "in queue" by default (i.e., subject to forced match assignments without explicitly running `/queue`)? Or must players opt in per session by running `/queue`?
+  - If opt-in: the forced cadence only applies to players who have queued and gone idle — not to players who haven't queued at all
+  - If always-in: every active ladder player is eligible to be force-assigned a match on the cadence cycle
+
+**Q31.** Does the warning system only trigger when a match was **actively offered** to the player and they didn't respond? Or also when they simply haven't played in X days (even if no match was offered because the queue was empty)?
+  - Important for fairness: a player shouldn't be warned for inactivity if there was no available opponent
+
+**Q32.** The forced match cadence is approximately every 3 days. Should this be:
+  - a) Per-player (each player has their own 3-day clock from their last match)
+  - b) Global (the scheduler fires every 3 days and sweeps all overdue players)
+  - c) Something else?
+
+**Q33.** What channel should the bot create match threads in? (e.g., a dedicated `#active-matches` channel) And should the thread be private (invite-only) or public?
+
+**Q34.** Should both players be required to `/im-ready` (or click a button), or just one? If only one is required, which one?
+
+**Q35.** When the warning threshold is reached and a player is auto-removed from the ladder, should the bot:
+  - a) DM the player automatically
+  - b) Post a mod notification only (mods handle communication)
+  - c) Both
+
+**Q36.** Is the 12–24hr farming cap per *pairing* (can't face this specific opponent again for 24hrs) or per *player* (can't face anyone you've already beaten twice today)? Stadium mentioned "can't farm people more than 2x in a 12–24hr period."
 
 ---
 

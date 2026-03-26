@@ -5,39 +5,43 @@
 ```
 Discord Users / Mods
         │
-        │ slash commands / interactions
+        │ slash commands / interactions / button clicks
         ▼
-┌─────────────────────────────────────────┐
-│            discord.js Bot               │
-│                                         │
-│  ┌──────────┐   ┌────────────────────┐  │
-│  │ Commands │──▶│   Services Layer   │  │
-│  │ Handlers │   │                    │  │
-│  └──────────┘   │  ┌──────────────┐  │  │
-│                 │  │MatchupService│  │  │
-│  ┌──────────┐   │  ├──────────────┤  │  │
-│  │  Events  │   │  │LadderService │  │  │
-│  │ Handlers │   │  ├──────────────┤  │  │
-│  └──────────┘   │  │ RulesService │  │  │
-│                 │  └──────┬───────┘  │  │
-│                 └─────────┼──────────┘  │
-└───────────────────────────┼─────────────┘
-                            │
-              ┌─────────────┴─────────────┐
-              │                           │
-              ▼                           ▼
-   ┌─────────────────┐         ┌─────────────────┐
-   │   Redis Cache   │         │  Google Sheets  │
-   │   (ioredis)     │◀────────│     API v4      │
-   │                 │  writes │                 │
-   │  - matchups     │  on miss│  - Matchups tab │
-   │  - banned       │         │  - Banned tab   │
-   │  - deathmatches │         │  - Deathmatches │
-   │  - rules        │         │  - TDL Rules    │
-   │  - ladder       │         │  - Ladder       │
-   │  - faq          │         │  - Questions    │
-   └─────────────────┘         │                 │
-                               └─────────────────┘
+┌─────────────────────────────────────────────────┐
+│                discord.js Bot                   │
+│                                                 │
+│  ┌──────────┐   ┌──────────────────────────┐   │
+│  │ Commands │──▶│      Services Layer       │   │
+│  │ Handlers │   │                           │   │
+│  └──────────┘   │  ┌──────────────────────┐ │  │
+│                 │  │   MatchupService      │ │  │
+│  ┌──────────┐   │  ├──────────────────────┤ │  │
+│  │  Events  │   │  │   LadderService       │ │  │
+│  │ Handlers │   │  ├──────────────────────┤ │  │
+│  └──────────┘   │  │   QueueService        │ │  │
+│                 │  ├──────────────────────┤ │  │
+│  ┌──────────┐   │  │   RulesService        │ │  │
+│  │Scheduler │   │  ├──────────────────────┤ │  │
+│  │ (cron)   │   │  │   WarningService      │ │  │
+│  └──────────┘   │  └──────────┬───────────┘ │  │
+│                 └─────────────┼─────────────┘  │
+└───────────────────────────────┼────────────────┘
+                                │
+              ┌─────────────────┼──────────────────┐
+              │                 │                  │
+              ▼                 ▼                  ▼
+   ┌─────────────────┐  ┌─────────────┐  ┌──────────────────┐
+   │   Redis Cache   │  │  PostgreSQL │  │  Google Sheets   │
+   │   (ioredis)     │  │  (Prisma)   │  │    API v4        │
+   │                 │  │             │  │                  │
+   │  - matchups     │  │  - Player   │  │  - Matchups tab  │
+   │  - banned       │  │  - Match    │  │  - Banned tab    │
+   │  - deathmatches │  │  - Warning  │  │  - Deathmatches  │
+   │  - rules / faq  │  │  - Season   │  │  - TDL Rules     │
+   │  - queue state  │  │             │  │  - Questions     │
+   │  - farming TTL  │  │             │  │                  │
+   └─────────────────┘  └─────────────┘  └──────────────────┘
+        transient             durable         rule content
 ```
 
 ---
@@ -158,36 +162,117 @@ Autocomplete should filter `CANONICAL_BUILDS` list as the user types.
 
 ---
 
-## Ladder Write Flow (Pending Q11 Answer)
+## Match Lifecycle State Machine
 
-**Option A — Bot writes to sheet:**
 ```
-/report-win @opponent
+Player runs /queue
     │
     ▼
-Opponent confirms (button interaction, 24h window)
+QueueService.enqueue(player)  ──▶ Redis: d2r:queue (FIFO list)
     │
-    ▼
-SheetsService.updateLadder(winner, loser)  ──▶ Sheets API write
+    ├── Queue was empty? Wait for next player to join
     │
-    ▼
-CacheService.invalidate("d2r:ladder")
-    │
-    ▼
-Announce result in #results channel
+    └── Match found (2 players in queue)
+            │
+            ▼
+        Check farming cap (Redis TTL: d2r:farming:<p1>:<p2>)
+            │
+            ├── Farming cap hit? → Error embed (ephemeral), both players remain in queue
+            │
+            └── OK → Create match
+                    │
+                    ▼
+                Determine build pairing (least-disadvantaged algorithm — TBD)
+                    │
+                    ▼
+                Create Discord thread (MANAGE_THREADS permission required)
+                Post matchup embed in thread + tag both players
+                    │
+                    ▼
+                Match state in Redis: d2r:match:<matchId>
+                Match record in Postgres: Match (status: PENDING_ACKNOWLEDGMENT)
+                    │
+                    ▼
+                Both players must /im-ready (or button click in thread)
+                    │
+                    ├── Timeout without acknowledgment → Warning issued (Postgres: Warning)
+                    │   3–5 warnings → auto-remove from ladder
+                    │
+                    └── Both acknowledged → Match status: IN_PROGRESS
+                            │
+                            ▼
+                        Winner runs /report-win @opponent
+                            │
+                            ▼
+                        Opponent confirms (button, 24h window)
+                            │
+                            ├── Dispute / no confirm → Route to mod review
+                            │
+                            └── Confirmed → Update Postgres (Match status: COMPLETE)
+                                    │
+                                    ▼
+                                Recalculate ladder standings in Postgres
+                                Invalidate Redis ladder cache
+                                Post result embed in #results channel
+                                Archive/lock match thread
+                                    │
+                                    ▼
+                                "Re-queue?" button offered to both players
 ```
 
-**Option B — Mods write to sheet, bot reads:**
+## Ladder Write Flow
+
+Bot writes match results directly to **PostgreSQL** (not to Google Sheets). The Ladder tab in Google Sheets is **read-only** from the bot's perspective — it is only used if mods maintain a separate human-readable copy.
+
 ```
-Mod updates Ladder tab in Google Sheets
+Match confirmed
     │
     ▼
-Bot detects change on next cache refresh (TTL expiry)
-OR
-Mod runs /refresh-cache ladder
+LadderService.recordResult(matchId, winnerId, loserId)
+    │
+    ├── Postgres: UPDATE Player SET wins/losses/points WHERE id IN (...)
+    ├── Postgres: UPDATE Match SET status = 'COMPLETE'
+    └── Redis: DEL d2r:ladder  (cache invalidation)
+```
+
+## Forced Match Cadence (Scheduler)
+
+A cron job runs on a configurable interval (e.g., every 6 hours) to check for players overdue for a match:
+
+```
+Scheduler fires (node-cron)
     │
     ▼
-Bot posts updated ladder embed to #ladder channel
+Query Postgres: players WHERE last_match_at < NOW() - MATCH_CADENCE_DAYS
+AND status = 'ACTIVE'
+    │
+    ▼
+For each overdue player:
+    ├── Already in queue? Skip
+    └── Not in queue → Force-assign match if opponent available
+            │
+            ├── No opponent available → DM player with nudge (no warning yet)
+            └── Opponent assigned → Create thread, require /im-ready acknowledgment
+                    │
+                    └── No ack within window → Issue warning (Postgres: Warning)
+```
+
+## Warning System
+
+```
+Postgres: Warning table
+  - playerId
+  - reason (ENUM: NO_ACK, NO_SHOW, MANUAL)
+  - createdAt
+  - clearedAt (nullable)
+  - clearedBy (mod Discord ID, nullable)
+
+Active warning count = COUNT WHERE clearedAt IS NULL
+
+On WARNING_THRESHOLD reached:
+  → Remove player from ladder (Player.status = 'REMOVED')
+  → Post mod notification in #admin channel
+  → DM player with removal notice
 ```
 
 ---
