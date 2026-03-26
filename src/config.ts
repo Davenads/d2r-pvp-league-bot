@@ -10,6 +10,29 @@ function optionalEnv(key: string, fallback: string): string {
   return process.env[key] ?? fallback;
 }
 
+/**
+ * Resolve Google service account credentials.
+ * Accepts either:
+ *   - D2R_GOOGLE_KEY = full service account JSON blob (preferred for Heroku)
+ *   - GOOGLE_SERVICE_ACCOUNT_EMAIL + GOOGLE_PRIVATE_KEY as separate vars (fallback)
+ */
+function resolveGoogleCredentials(): { serviceAccountEmail: string; privateKey: string } {
+  const jsonBlob = process.env['D2R_GOOGLE_KEY'];
+  if (jsonBlob) {
+    const parsed = JSON.parse(jsonBlob) as { client_email: string; private_key: string };
+    return {
+      serviceAccountEmail: parsed.client_email,
+      privateKey: parsed.private_key,
+    };
+  }
+  return {
+    serviceAccountEmail: requireEnv('GOOGLE_SERVICE_ACCOUNT_EMAIL'),
+    privateKey: requireEnv('GOOGLE_PRIVATE_KEY').replace(/\\n/g, '\n'),
+  };
+}
+
+const googleCredentials = resolveGoogleCredentials();
+
 export const config = {
   discord: {
     token: requireEnv('DISCORD_TOKEN'),
@@ -18,9 +41,8 @@ export const config = {
   },
   google: {
     sheetId: requireEnv('GOOGLE_SHEET_ID'),
-    serviceAccountEmail: requireEnv('GOOGLE_SERVICE_ACCOUNT_EMAIL'),
-    // Replaces literal \n in env var with actual newlines (common .env gotcha)
-    privateKey: requireEnv('GOOGLE_PRIVATE_KEY').replace(/\\n/g, '\n'),
+    serviceAccountEmail: googleCredentials.serviceAccountEmail,
+    privateKey: googleCredentials.privateKey,
   },
   redis: {
     url: optionalEnv('REDIS_URL', 'redis://localhost:6379'),
