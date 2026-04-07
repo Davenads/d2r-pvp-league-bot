@@ -49,7 +49,7 @@ async function getLadderEntries(): Promise<LadderEntry[]> {
 export const command: Command = {
   data: new SlashCommandBuilder()
     .setName('ladder')
-    .setDescription('Show the current TDL league standings')
+    .setDescription('Show the current D2R 1v1 League standings')
     .addIntegerOption((opt) =>
       opt
         .setName('page')

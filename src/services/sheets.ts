@@ -71,7 +71,7 @@ export async function fetchDeathmatches(): Promise<string[][]> {
 }
 
 /**
- * Returns the TDL Rules tab content.
+ * Returns the D2R 1v1 League Rules tab content.
  */
 export async function fetchGeneralRules(): Promise<string[][]> {
   return readRange(SHEET_TABS.rules);

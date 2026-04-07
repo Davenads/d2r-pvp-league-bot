@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This is a Discord bot for managing a **Diablo 2 Resurrected (D2R) PvP 1v1 League** (the "TDL" league based on sheet tab naming). It handles matchup rule lookups, banned matchup enforcement, deathmatch tracking, player registration, ladder standings, and mod administration — all backed by a Google Sheet as the source of truth.
+This is a Discord bot for managing a **Diablo 2 Resurrected (D2R) PvP 1v1 League**. It handles matchup rule lookups, banned matchup enforcement, deathmatch tracking, player registration, ladder standings, and mod administration — all backed by a Google Sheet as the source of truth.
 
 **Primary stakeholder:** Stadium (main mod/administrator of the server)
 
@@ -74,7 +74,7 @@ The spreadsheet is the **single source of truth** for all game rules and league 
 
 | Data | Storage | Rationale |
 |---|---|---|
-| Matchup rules, banned list, deathmatches, TDL rules, FAQ | Redis (cached from Sheets) | Read-heavy, rarely changes, Sheets is source of truth |
+| Matchup rules, banned list, deathmatches, D2R 1v1 League rules, FAQ | Redis (cached from Sheets) | Read-heavy, rarely changes, Sheets is source of truth |
 | Player records, match history, warning counts, ladder standings | **PostgreSQL** | Durable, relational, survives dyno restarts |
 | Active queue state, current match state, farming cap tracking | **Redis** | Transient — fine to lose on restart, fast access needed |
 | Rule content (authoritative) | Google Sheets | Mods edit directly; bot reads and caches |
@@ -139,7 +139,7 @@ The `release` phase runs Prisma migrations automatically on every deploy before 
 | `/matchup <build_a> <build_b>` | Look up the rules for a specific build vs build matchup |
 | `/banned-matchups [build]` | List all banned matchups (optionally filtered by build) |
 | `/deathmatch <build>` | Show the deathmatch alternatives for a given build |
-| `/rules` | Display the general TDL rules |
+| `/rules` | Display the general D2R 1v1 League rules |
 | `/ladder [page]` | Show current league standings |
 | `/player <name>` | Show a player's stats, build(s), and record |
 | `/faq [topic]` | Look up FAQ entries |

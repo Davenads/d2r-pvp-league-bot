@@ -28,7 +28,7 @@ export function buildMatchupEmbed(rules: MatchupRules): EmbedBuilder {
   const embed = new EmbedBuilder()
     .setColor(EMBED_COLORS.rules)
     .setTitle(`${rules.buildA} vs ${rules.buildB}`)
-    .setFooter({ text: 'Rules sourced from TDL ruleset. Use /rules for general rules.' });
+    .setFooter({ text: 'Rules sourced from D2R 1v1 League ruleset. Use /rules for general rules.' });
 
   if (rules.rulesForA) {
     embed.addFields({ name: `${rules.buildA} Rules`, value: rules.rulesForA, inline: false });
@@ -57,7 +57,7 @@ export function buildLadderEmbed(entries: LadderEntry[], page: number, totalPage
 
   return new EmbedBuilder()
     .setColor(EMBED_COLORS.ladder)
-    .setTitle('TDL League Standings')
+    .setTitle('D2R 1v1 League Standings')
     .setDescription(rows || '*No ladder entries found.*')
     .setFooter({ text: `Page ${page} of ${totalPages}` });
 }
