@@ -22,6 +22,9 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Planning / design docs (not shipped)
+plan/
+
 # Logs
 *.log
 npm-debug.log*
