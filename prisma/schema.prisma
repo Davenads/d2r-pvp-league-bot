@@ -47,7 +47,6 @@ model Player {
   id              Int          @id @default(autoincrement())
   discordId       String       @unique  // Discord snowflake (stable)
   discordUsername String                // display name at time of last update
-  ign             String                // in-game name
   build1          String                // canonical build name (required)
   build2          String                // canonical build name (required, distinct from build1)
   status          PlayerStatus @default(ACTIVE)
