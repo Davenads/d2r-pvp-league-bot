@@ -24,7 +24,6 @@ async function getLadderEntries(): Promise<LadderEntry[]> {
       rank: parseInt(row[idx('rank')] ?? '0', 10),
       discordUsername: row[idx('discord_username')] ?? '',
       discordId: row[idx('discord_id')] ?? '',
-      ign: row[idx('ign')] ?? '',
       build: row[idx('build')] ?? '',
       build2: row[idx('build_2')] || undefined,
       wins: parseInt(row[idx('w')] ?? '0', 10),

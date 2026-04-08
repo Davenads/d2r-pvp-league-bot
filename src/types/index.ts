@@ -25,7 +25,6 @@ export interface LadderEntry {
   rank: number;
   discordUsername: string;
   discordId: string;
-  ign: string;
   build: string;
   build2?: string;
   wins: number;

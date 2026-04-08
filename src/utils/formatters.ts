@@ -51,7 +51,7 @@ export function buildLadderEmbed(entries: LadderEntry[], page: number, totalPage
   const rows = entries
     .map((e) => {
       const pct = (e.winPct * 100).toFixed(1);
-      return `**${e.rank}.** ${e.ign} (${e.build}) — ${e.wins}W / ${e.losses}L (${pct}%) — ${e.points}pts`;
+      return `**${e.rank}.** ${e.discordUsername} (${e.build}) — ${e.wins}W / ${e.losses}L (${pct}%) — ${e.points}pts`;
     })
     .join('\n');
 
