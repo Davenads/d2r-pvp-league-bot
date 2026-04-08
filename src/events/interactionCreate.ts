@@ -1,9 +1,9 @@
-import { Events, EmbedBuilder, Colors, TextChannel, ThreadChannel } from 'discord.js';
+import { Events, EmbedBuilder, Colors, TextChannel, ThreadChannel, ChannelType } from 'discord.js';
 import type { Interaction, ButtonInteraction } from 'discord.js';
 import type { BotClient } from '../index.js';
 import { buildErrorEmbed, EMBED_COLORS } from '../utils/formatters.js';
 import { prisma } from '../db/client.js';
-import { clearActiveMatch, setPlayerState } from '../services/queue.js';
+import { clearActiveMatch, setPlayerState, getMirrorRequest, deleteMirrorRequest, startMirrorMatch, setMatchThreadId } from '../services/queue.js';
 import { updateLadderResult } from '../services/ladder.js';
 import { CHANNELS } from '../config/channels.js';
 
@@ -51,18 +51,25 @@ export async function execute(interaction: Interaction): Promise<void> {
 
   // ── Button interactions ───────────────────────────────────────────────────
   if (interaction.isButton()) {
-    const [action, matchIdStr] = interaction.customId.split(':');
-    const matchId = parseInt(matchIdStr ?? '', 10);
+    const colonIdx = interaction.customId.indexOf(':');
+    const action = colonIdx === -1 ? interaction.customId : interaction.customId.slice(0, colonIdx);
+    const payload = colonIdx === -1 ? '' : interaction.customId.slice(colonIdx + 1);
 
-    if (isNaN(matchId)) return;
-
-    if (action === 'confirm_result') {
-      await handleConfirmResult(interaction, matchId);
+    if (action === 'confirm_result' || action === 'dispute_result') {
+      const matchId = parseInt(payload, 10);
+      if (isNaN(matchId)) return;
+      if (action === 'confirm_result') await handleConfirmResult(interaction, matchId);
+      else await handleDisputeResult(interaction, matchId);
       return;
     }
 
-    if (action === 'dispute_result') {
-      await handleDisputeResult(interaction, matchId);
+    if (action === 'mirror_accept') {
+      await handleMirrorAccept(interaction, payload);
+      return;
+    }
+
+    if (action === 'mirror_decline') {
+      await handleMirrorDecline(interaction, payload);
       return;
     }
   }
@@ -254,5 +261,161 @@ async function handleDisputeResult(interaction: ButtonInteraction, matchId: numb
   } catch (err) {
     console.error('[dispute_result]', err);
     await interaction.editReply({ embeds: [buildErrorEmbed('Failed to dispute result. Contact a mod directly.')] });
+  }
+}
+
+// ── Mirror accept handler ─────────────────────────────────────────────────────
+
+async function handleMirrorAccept(interaction: ButtonInteraction, nonce: string): Promise<void> {
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    const req = await getMirrorRequest(nonce);
+
+    if (!req) {
+      await interaction.editReply({ embeds: [buildErrorEmbed('This mirror request has expired or already been resolved.')] });
+      return;
+    }
+
+    // Only the intended opponent can accept
+    if (interaction.user.id !== req.opponentId) {
+      await interaction.editReply({ embeds: [buildErrorEmbed('This mirror request was not sent to you.')] });
+      return;
+    }
+
+    const season = await prisma.season.findFirst({ where: { active: true } });
+    if (!season) {
+      await interaction.editReply({ embeds: [buildErrorEmbed('No active season.')] });
+      return;
+    }
+
+    const [p1, p2] = await Promise.all([
+      prisma.player.findFirst({ where: { discordId: req.requesterId, seasonId: season.id, status: 'ACTIVE' } }),
+      prisma.player.findFirst({ where: { discordId: req.opponentId, seasonId: season.id, status: 'ACTIVE' } }),
+    ]);
+
+    if (!p1 || !p2) {
+      await interaction.editReply({ embeds: [buildErrorEmbed('One or both players are no longer eligible.')] });
+      return;
+    }
+
+    // Create the mirror match
+    const { matchId } = await startMirrorMatch(req, season.id, p1.id, p2.id);
+    await deleteMirrorRequest(nonce);
+
+    // Create match thread
+    const threadParent = interaction.client.channels.cache.get(CHANNELS.matchThreads) as TextChannel | undefined;
+    let threadId: string | undefined;
+
+    if (threadParent) {
+      try {
+        const thread = await threadParent.threads.create({
+          name: `Match #${matchId} — Mirror`,
+          type: ChannelType.PrivateThread,
+          reason: `Mirror match #${matchId}`,
+        });
+        threadId = thread.id;
+        await thread.members.add(req.requesterId);
+        await thread.members.add(req.opponentId);
+
+        await thread.send({
+          content: `<@${req.requesterId}> <@${req.opponentId}>`,
+          embeds: [
+            new EmbedBuilder()
+              .setColor(Colors.Gold)
+              .setTitle(`Mirror Match #${matchId} — ${req.build} vs ${req.build}`)
+              .setDescription(`<@${req.requesterId}> vs <@${req.opponentId}>\n\nBoth players are on **${req.build}**.`)
+              .setFooter({ text: 'Report the result with /report-win once done.' })
+              .setTimestamp(),
+          ],
+        });
+
+        await setMatchThreadId(req.requesterId, threadId);
+        await prisma.match.update({ where: { id: matchId }, data: { threadId } });
+      } catch (threadErr) {
+        console.warn('[mirror_accept] Failed to create thread:', threadErr);
+      }
+    }
+
+    await interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(Colors.Green)
+          .setTitle('Mirror Match Accepted!')
+          .setDescription(
+            `You've accepted the mirror match against <@${req.requesterId}>.\n\n` +
+            `**Build:** ${req.build}` +
+            (threadId ? `\n\nCheck <#${threadId}> for your match thread.` : '')
+          ),
+      ],
+    });
+
+    // Update the original request message in #1v1-queue
+    const queueChannel = interaction.client.channels.cache.get(CHANNELS.queue) as TextChannel | undefined;
+    if (queueChannel) {
+      await queueChannel.send({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(Colors.Gold)
+            .setTitle('Mirror Match — Accepted')
+            .addFields(
+              { name: 'Player 1', value: `<@${req.requesterId}> — ${req.build}`, inline: true },
+              { name: 'Player 2', value: `<@${req.opponentId}> — ${req.build}`, inline: true },
+              ...(threadId ? [{ name: 'Thread', value: `<#${threadId}>`, inline: false }] : []),
+            )
+            .setTimestamp(),
+        ],
+      });
+    }
+  } catch (err) {
+    console.error('[mirror_accept]', err);
+    await interaction.editReply({ embeds: [buildErrorEmbed('Failed to create mirror match. Contact a mod.')] });
+  }
+}
+
+// ── Mirror decline handler ────────────────────────────────────────────────────
+
+async function handleMirrorDecline(interaction: ButtonInteraction, nonce: string): Promise<void> {
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    const req = await getMirrorRequest(nonce);
+
+    if (!req) {
+      await interaction.editReply({ embeds: [buildErrorEmbed('This mirror request has already expired or been resolved.')] });
+      return;
+    }
+
+    if (interaction.user.id !== req.opponentId) {
+      await interaction.editReply({ embeds: [buildErrorEmbed('This mirror request was not sent to you.')] });
+      return;
+    }
+
+    await deleteMirrorRequest(nonce);
+
+    await interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(EMBED_COLORS.warning)
+          .setTitle('Mirror Request Declined')
+          .setDescription('You have declined the mirror match request.'),
+      ],
+    });
+
+    // Notify the requester via #1v1-queue
+    const queueChannel = interaction.client.channels.cache.get(CHANNELS.queue) as TextChannel | undefined;
+    if (queueChannel) {
+      await queueChannel.send({
+        content: `<@${req.requesterId}>`,
+        embeds: [
+          new EmbedBuilder()
+            .setColor(EMBED_COLORS.warning)
+            .setDescription(`<@${req.opponentId}> declined your mirror match request for **${req.build}**.`),
+        ],
+      });
+    }
+  } catch (err) {
+    console.error('[mirror_decline]', err);
+    await interaction.editReply({ embeds: [buildErrorEmbed('Something went wrong. Contact a mod.')] });
   }
 }

@@ -10,7 +10,7 @@
 import { prisma } from '../db/client.js';
 import { getRedisClient } from './cache.js';
 import { isMatchupBanned } from './matchup.js';
-import { CacheKeys, type PlayerQueueState, type ActiveMatchState } from '../types/index.js';
+import { CacheKeys, type PlayerQueueState, type ActiveMatchState, type MirrorRequest } from '../types/index.js';
 import { config } from '../config.js';
 
 // ── Player state ──────────────────────────────────────────────────────────────
@@ -228,6 +228,73 @@ export async function joinQueue(joinerDiscordId: string): Promise<QueueJoinOutco
   const position = await redis.llen(queueKey);
 
   return { matched: false, position };
+}
+
+// ── Mirror request storage ────────────────────────────────────────────────────
+
+const MIRROR_REQUEST_TTL = 300; // 5 minutes
+
+/** Stores a pending mirror request. Returns the nonce key for button IDs. */
+export async function createMirrorRequest(req: MirrorRequest): Promise<string> {
+  const redis = getRedisClient();
+  const nonce = `${req.requesterId}_${Date.now()}`;
+  const key = CacheKeys.mirrorRequest(nonce);
+  await redis.set(key, JSON.stringify(req), 'EX', MIRROR_REQUEST_TTL);
+  return nonce;
+}
+
+/** Retrieves a pending mirror request by nonce. Returns null if expired or not found. */
+export async function getMirrorRequest(nonce: string): Promise<MirrorRequest | null> {
+  const redis = getRedisClient();
+  const raw = await redis.get(CacheKeys.mirrorRequest(nonce));
+  if (!raw) return null;
+  return JSON.parse(raw) as MirrorRequest;
+}
+
+/** Deletes a mirror request (used on accept or decline). */
+export async function deleteMirrorRequest(nonce: string): Promise<void> {
+  const redis = getRedisClient();
+  await redis.del(CacheKeys.mirrorRequest(nonce));
+}
+
+/**
+ * Creates a mirror match in Postgres and sets Redis state for both players.
+ * Farming cap is intentionally skipped — mutual consent implies awareness.
+ */
+export async function startMirrorMatch(
+  req: MirrorRequest,
+  seasonId: number,
+  p1DbId: number,
+  p2DbId: number,
+): Promise<{ matchId: number }> {
+  const match = await prisma.match.create({
+    data: {
+      seasonId,
+      player1Id: p1DbId,
+      player2Id: p2DbId,
+      build1Used: req.build,
+      build2Used: req.build,
+      type: 'STANDARD',
+      status: 'PENDING',
+    },
+  });
+
+  const matchState: ActiveMatchState = {
+    matchId: match.id,
+    player1DiscordId: req.requesterId,
+    player2DiscordId: req.opponentId,
+    build1: req.build,
+    build2: req.build,
+    createdAt: Date.now(),
+  };
+
+  await Promise.all([
+    setActiveMatch(matchState),
+    setPlayerState(req.requesterId, 'in_match'),
+    setPlayerState(req.opponentId, 'in_match'),
+  ]);
+
+  return { matchId: match.id };
 }
 
 // ── Build selection ───────────────────────────────────────────────────────────

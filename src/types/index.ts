@@ -72,7 +72,16 @@ export const CacheKeys = {
     const [x, y] = [a, b].sort();
     return `d2r:farming:${x}:${y}`;
   },
+  mirrorRequest: (nonce: string) => `d2r:mirror:req:${nonce}`,
 } as const;
+
+// ── Mirror request type ───────────────────────────────────────────────────────
+
+export interface MirrorRequest {
+  requesterId: string;    // Discord ID
+  opponentId: string;     // Discord ID
+  build: string;          // The mirror build both players will use
+}
 
 // ── Queue / match state types ────────────────────────────────────────────────
 
