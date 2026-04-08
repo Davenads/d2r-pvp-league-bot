@@ -7,7 +7,7 @@ export const SHEET_TABS = {
   matchups: 'Matchups',
   banned: 'Banned matchups',
   deathmatches: 'Matchups: Deathmatches',
-  rules: 'TDL Rules',
+  rules: '1v1 Rules',
   questions: 'Questions',
   ladder: 'Ladder',
 } as const;
