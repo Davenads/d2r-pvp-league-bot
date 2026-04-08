@@ -64,4 +64,26 @@ export const CacheKeys = {
   rulesGeneral: () => 'd2r:rules:general',
   faq: () => 'd2r:faq',
   ladder: () => 'd2r:ladder',
+  // Queue / match state
+  queue: () => 'd2r:queue',
+  playerState: (discordId: string) => `d2r:player:${discordId}:state`,
+  activeMatch: (discordId: string) => `d2r:match:active:${discordId}`,
+  farmingPair: (a: string, b: string) => {
+    const [x, y] = [a, b].sort();
+    return `d2r:farming:${x}:${y}`;
+  },
 } as const;
+
+// ── Queue / match state types ────────────────────────────────────────────────
+
+export type PlayerQueueState = 'idle' | 'queued' | 'in_match';
+
+export interface ActiveMatchState {
+  matchId: number;             // Postgres Match.id
+  player1DiscordId: string;
+  player2DiscordId: string;
+  build1: string;              // player1's build for this match
+  build2: string;              // player2's build for this match
+  threadId?: string;           // filled in after thread creation
+  createdAt: number;           // unix ms
+}

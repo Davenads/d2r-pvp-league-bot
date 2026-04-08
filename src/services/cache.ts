@@ -79,6 +79,14 @@ export async function cacheFlushPattern(pattern: string): Promise<number> {
   return deleted;
 }
 
+/**
+ * Exposes the raw ioredis client for operations not covered by the helper
+ * functions above (e.g. list operations for the queue).
+ */
+export function getRedisClient(): Redis {
+  return getClient();
+}
+
 export async function closeCache(): Promise<void> {
   if (client) {
     await client.quit();

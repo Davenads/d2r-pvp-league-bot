@@ -53,6 +53,9 @@ export const config = {
   },
   league: {
     warningThreshold: parseInt(optionalEnv('WARNING_THRESHOLD', '5'), 10),
+    farmingCapMax: parseInt(optionalEnv('FARMING_CAP_MAX', '2'), 10),
+    farmingCapHours: parseInt(optionalEnv('FARMING_CAP_HOURS', '24'), 10),
+    matchCadenceDays: parseInt(optionalEnv('MATCH_CADENCE_DAYS', '3'), 10),
   },
   isDev: optionalEnv('NODE_ENV', 'development') === 'development',
 } as const;
