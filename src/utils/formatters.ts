@@ -62,6 +62,26 @@ export function buildLadderEmbed(entries: LadderEntry[], page: number, totalPage
     .setFooter({ text: `Page ${page} of ${totalPages}` });
 }
 
+// ── Registration embeds ──────────────────────────────────────────────────────
+
+export function buildRegistrationEmbed(
+  discordUsername: string,
+  discordId: string,
+  build1: string,
+  build2: string,
+): EmbedBuilder {
+  return new EmbedBuilder()
+    .setColor(EMBED_COLORS.success)
+    .setTitle('New Player Registered')
+    .setDescription(`<@${discordId}> has joined the D2R 1v1 League!`)
+    .addFields(
+      { name: 'Build 1', value: build1, inline: true },
+      { name: 'Build 2', value: build2, inline: true },
+    )
+    .setFooter({ text: `Discord: ${discordUsername}` })
+    .setTimestamp();
+}
+
 // ── Generic error embed ──────────────────────────────────────────────────────
 
 export function buildErrorEmbed(message: string): EmbedBuilder {

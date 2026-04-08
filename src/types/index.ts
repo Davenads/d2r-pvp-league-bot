@@ -36,7 +36,7 @@ export interface LadderEntry {
   trWinPct: number;
   dmWins: number;
   dmLosses: number;
-  status: 'Active' | 'Inactive' | 'DQ';
+  status: 'Available' | 'Vacation';
   lastMatch: string;
   registered: string;
   notes?: string;
