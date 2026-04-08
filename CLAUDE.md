@@ -75,7 +75,8 @@ The spreadsheet is the **single source of truth** for all game rules and league 
 | Data | Storage | Rationale |
 |---|---|---|
 | Matchup rules, banned list, deathmatches, D2R 1v1 League rules, FAQ | Redis (cached from Sheets) | Read-heavy, rarely changes, Sheets is source of truth |
-| Player records, match history, warning counts, ladder standings | **PostgreSQL** | Durable, relational, survives dyno restarts |
+| Ladder standings / leaderboard display | Google Sheets (`Ladder` tab) + Redis cache | Sheet is source of truth; bot reads and caches; bot writes W/L increments on result confirm |
+| Player registration metadata, match history, warning counts | **PostgreSQL** | Durable, relational, survives dyno restarts |
 | Active queue state, current match state, farming cap tracking | **Redis** | Transient — fine to lose on restart, fast access needed |
 | Rule content (authoritative) | Google Sheets | Mods edit directly; bot reads and caches |
 
@@ -211,7 +212,7 @@ NODE_ENV=development
 
 ## Key Design Decisions
 
-1. **Google Sheets is the source of truth for rule content only.** Mods update rules directly in the sheet. The bot reads and caches. Player records, match results, warnings, and ladder standings are stored in **PostgreSQL**, not in the sheet.
+1. **Google Sheets is the source of truth for both rule content and ladder standings.** Mods update rules directly in the sheet. The bot reads all sheet tabs and caches in Redis. On match result confirmation, the bot writes W/L increments directly to the `Ladder` tab (by Discord ID lookup). Formula columns (`W%`, `TR_W%`, `Rank`) update automatically in the sheet. Player registration metadata, match history, and warnings are stored in **PostgreSQL**.
 
 2. **SQLite is explicitly off the table.** Heroku's ephemeral filesystem destroys SQLite files on every dyno restart. All durable state uses Heroku Postgres.
 
@@ -291,5 +292,5 @@ The bot operates in the **1v1 League** category of the production Discord server
 | `CLAUDE.md` | This file — project context for Claude Code |
 | `D2R PvP 1v1 League - Matchups.csv` | Local snapshot of the Matchups sheet tab |
 | `Images/` | Screenshots of the Google Sheet structure |
-| `plan/` | Planning docs (gitignored — not shipped) |
+| `plan/` | Planning docs (gitignored — not shipped); includes `ladder-schema.md` for Google Sheet column reference |
 | `src/config/channels.ts` | Hardcoded Discord channel IDs for production server |
