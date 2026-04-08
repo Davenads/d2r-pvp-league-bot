@@ -11,6 +11,7 @@
     "deploy:global": "tsx src/deploy-commands.ts --global",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit",
+    "heroku-postbuild": "npm run build",
     "postinstall": "prisma generate"
   },
   "dependencies": {
