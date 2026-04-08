@@ -28,7 +28,7 @@ async function loadCommands(): Promise<void> {
     return readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
       entry.isDirectory()
         ? walk(join(dir, entry.name))
-        : entry.name.endsWith('.ts') || entry.name.endsWith('.js')
+        : entry.name.endsWith('.js')
         ? [join(dir, entry.name)]
         : []
     );
@@ -51,7 +51,7 @@ async function loadCommands(): Promise<void> {
 
 async function loadEvents(): Promise<void> {
   const eventsPath = join(__dirname, 'events');
-  const files = readdirSync(eventsPath).filter((f) => f.endsWith('.ts') || f.endsWith('.js'));
+  const files = readdirSync(eventsPath).filter((f) => f.endsWith('.js') && !f.endsWith('.d.ts'));
 
   for (const file of files) {
     const module = await import(join(eventsPath, file)) as {
