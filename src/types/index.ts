@@ -1,4 +1,5 @@
-import { ChatInputCommandInteraction, AutocompleteInteraction, SlashCommandBuilder, SlashCommandOptionsOnlyBuilder } from 'discord.js';
+import { ChatInputCommandInteraction, AutocompleteInteraction, SlashCommandBuilder } from 'discord.js';
+import type { SlashCommandOptionsOnlyBuilder } from 'discord.js';
 
 // ── Command shape ────────────────────────────────────────────────────────────
 

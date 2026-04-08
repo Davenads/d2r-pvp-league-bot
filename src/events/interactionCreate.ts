@@ -1,4 +1,5 @@
-import { Events, Interaction } from 'discord.js';
+import { Events } from 'discord.js';
+import type { Interaction } from 'discord.js';
 import type { BotClient } from '../index.js';
 import { buildErrorEmbed } from '../utils/formatters.js';
 
