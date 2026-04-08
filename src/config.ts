@@ -11,12 +11,12 @@ function optionalEnv(key: string, fallback: string): string {
 }
 
 /**
- * Resolve Google service account credentials.
+ * Resolve Google service account credentials (lazy — only called when Google services init).
  * Accepts either:
  *   - D2R_GOOGLE_KEY = full service account JSON blob (preferred for Heroku)
  *   - GOOGLE_SERVICE_ACCOUNT_EMAIL + GOOGLE_PRIVATE_KEY as separate vars (fallback)
  */
-function resolveGoogleCredentials(): { serviceAccountEmail: string; privateKey: string } {
+export function resolveGoogleCredentials(): { serviceAccountEmail: string; privateKey: string } {
   const jsonBlob = process.env['D2R_GOOGLE_KEY'];
   if (jsonBlob) {
     const parsed = JSON.parse(jsonBlob) as { client_email: string; private_key: string };
@@ -31,8 +31,6 @@ function resolveGoogleCredentials(): { serviceAccountEmail: string; privateKey: 
   };
 }
 
-const googleCredentials = resolveGoogleCredentials();
-
 export const config = {
   discord: {
     token: requireEnv('DISCORD_TOKEN'),
@@ -40,9 +38,7 @@ export const config = {
     guildId: process.env['DISCORD_GUILD_ID'],  // undefined = global deployment
   },
   google: {
-    sheetId: requireEnv('GOOGLE_SHEET_ID'),
-    serviceAccountEmail: googleCredentials.serviceAccountEmail,
-    privateKey: googleCredentials.privateKey,
+    sheetId: optionalEnv('GOOGLE_SHEET_ID', ''),  // empty string safe for deploy-commands.ts
   },
   redis: {
     url: optionalEnv('REDIS_URL', 'redis://localhost:6379'),

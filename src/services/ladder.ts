@@ -10,7 +10,7 @@
  */
 
 import { google, sheets_v4 } from 'googleapis';
-import { config } from '../config.js';
+import { config, resolveGoogleCredentials } from '../config.js';
 import { MatchType } from '@prisma/client';
 
 // ── Write-enabled Sheets client ───────────────────────────────────────────────
@@ -19,10 +19,11 @@ let writeClient: sheets_v4.Sheets | null = null;
 
 function getWriteClient(): sheets_v4.Sheets {
   if (!writeClient) {
+    const { serviceAccountEmail, privateKey } = resolveGoogleCredentials();
     const auth = new google.auth.GoogleAuth({
       credentials: {
-        client_email: config.google.serviceAccountEmail,
-        private_key: config.google.privateKey,
+        client_email: serviceAccountEmail,
+        private_key: privateKey,
       },
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });

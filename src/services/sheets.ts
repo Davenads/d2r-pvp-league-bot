@@ -1,5 +1,5 @@
 import { google, sheets_v4 } from 'googleapis';
-import { config } from '../config.js';
+import { config, resolveGoogleCredentials } from '../config.js';
 
 // ── Sheet tab names ──────────────────────────────────────────────────────────
 
@@ -18,10 +18,11 @@ let sheetsClient: sheets_v4.Sheets | null = null;
 
 function getSheetsClient(): sheets_v4.Sheets {
   if (!sheetsClient) {
+    const { serviceAccountEmail, privateKey } = resolveGoogleCredentials();
     const auth = new google.auth.GoogleAuth({
       credentials: {
-        client_email: config.google.serviceAccountEmail,
-        private_key: config.google.privateKey,
+        client_email: serviceAccountEmail,
+        private_key: privateKey,
       },
       scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
     });
