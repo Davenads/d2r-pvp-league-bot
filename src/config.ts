@@ -51,5 +51,8 @@ export const config = {
     ttlRules: parseInt(optionalEnv('CACHE_TTL_RULES', '3600'), 10),
     ttlLadder: parseInt(optionalEnv('CACHE_TTL_LADDER', '60'), 10),
   },
+  league: {
+    warningThreshold: parseInt(optionalEnv('WARNING_THRESHOLD', '5'), 10),
+  },
   isDev: optionalEnv('NODE_ENV', 'development') === 'development',
 } as const;
