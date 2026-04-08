@@ -73,6 +73,8 @@ export const CacheKeys = {
     return `d2r:farming:${x}:${y}`;
   },
   mirrorRequest: (nonce: string) => `d2r:mirror:req:${nonce}`,
+  // Forced match assignment (set by scheduler, cleared by /im-ready)
+  forcedMatch: (discordId: string) => `d2r:forced:${discordId}`,
 } as const;
 
 // ── Mirror request type ───────────────────────────────────────────────────────

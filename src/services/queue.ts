@@ -230,6 +230,37 @@ export async function joinQueue(joinerDiscordId: string): Promise<QueueJoinOutco
   return { matched: false, position };
 }
 
+// ── Forced match assignment ───────────────────────────────────────────────────
+
+export interface ForcedMatchAssignment {
+  opponentDiscordId: string;
+  assignedAt: number;  // unix ms
+}
+
+/**
+ * Sets a pending forced match assignment for a player.
+ * Called by the scheduler when a player is overdue.
+ * TTL: 48h — if they don't acknowledge, the scheduler will escalate.
+ */
+export async function setForcedMatch(discordId: string, assignment: ForcedMatchAssignment): Promise<void> {
+  const redis = getRedisClient();
+  await redis.set(CacheKeys.forcedMatch(discordId), JSON.stringify(assignment), 'EX', 172800);
+}
+
+/** Returns the pending forced match assignment, or null if none. */
+export async function getForcedMatch(discordId: string): Promise<ForcedMatchAssignment | null> {
+  const redis = getRedisClient();
+  const raw = await redis.get(CacheKeys.forcedMatch(discordId));
+  if (!raw) return null;
+  return JSON.parse(raw) as ForcedMatchAssignment;
+}
+
+/** Clears a forced match assignment (called by /im-ready). */
+export async function clearForcedMatch(discordId: string): Promise<void> {
+  const redis = getRedisClient();
+  await redis.del(CacheKeys.forcedMatch(discordId));
+}
+
 // ── Mirror request storage ────────────────────────────────────────────────────
 
 const MIRROR_REQUEST_TTL = 300; // 5 minutes
