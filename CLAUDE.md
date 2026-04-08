@@ -285,6 +285,16 @@ The bot operates in the **1v1 League** category of the production Discord server
 
 ---
 
+## Implementation Protocol
+
+When the user asks to implement multiple features/commands in sequence:
+
+- **One at a time, always.** Implement one item, push, post a review message, then STOP.
+- **Wait for explicit confirmation** before proceeding to the next item — do not say "going now" and immediately continue.
+- This applies even if items seem small or closely related.
+
+---
+
 ## Files in This Repo
 
 | File | Purpose |
