@@ -233,8 +233,7 @@ export async function joinQueue(joinerDiscordId: string): Promise<QueueJoinOutco
 // ── Forced match assignment ───────────────────────────────────────────────────
 
 export interface ForcedMatchAssignment {
-  opponentDiscordId: string;
-  assignedAt: number;  // unix ms
+  assignedAt: number;  // unix ms — used by scheduler to detect unacknowledged assignments
 }
 
 /**
