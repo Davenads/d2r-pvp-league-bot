@@ -100,6 +100,8 @@ The spreadsheet is the **single source of truth** for all game rules and league 
 ```
 src/
   commands/           # Slash command handlers (one file per command or group)
+  config/
+    channels.ts       # Hardcoded Discord channel IDs (non-secret, committed to repo)
   events/             # Discord event handlers (ready, interactionCreate, etc.)
   services/
     sheets.ts         # Google Sheets API wrapper
@@ -180,6 +182,7 @@ The `release` phase runs Prisma migrations automatically on every deploy before 
 - **No hardcoded rule text** — all rule content must come from the Google Sheet
 - **All sheet reads go through the cache service** — never call the Sheets API directly from a command handler
 - **Environment variables** for all secrets (bot token, sheet ID, Redis URL, Google credentials)
+- **Channel IDs in `src/config/channels.ts`** — Discord channel IDs are non-sensitive snowflakes; store in committed config file, not env vars. Import via `CHANNELS` export.
 - **Graceful error handling** — catch and log all errors; always reply to the user with a user-friendly message
 
 ---
@@ -242,14 +245,51 @@ NODE_ENV=development
 
 ---
 
+## Discord Server Channel Structure
+
+The bot operates in the **1v1 League** category of the production Discord server.
+
+### Channel IDs (hardcoded in `src/config/channels.ts`)
+
+| Key | Channel | ID | Purpose |
+|---|---|---|---|
+| `modLogs` | `1v1-mod-logs` | 1491240646168543322 | All bot admin action logs |
+| `modQueue` | `1v1-mod-queue` | 1491240699876868116 | Live queue state updates |
+| `queue` | `1v1-queue` | 1491240398268403934 | Match assignments, queue confirmations |
+| `matchResults` | `1v1-match-results` | 1491240439708123228 | Confirmed result summaries |
+| `leaderboard` | `1v1-leaderboard` | 1491240333005033492 | Auto-updated standings embed |
+| `matchThreads` | `1v1-match-threads` | 1491240507672629479 | Parent channel for per-match private threads |
+| `announcements` | `1v1-announcements` | 1491240168294977617 | Season/major event announcements |
+| `signUpHere` | `1v1-sign-up-here` | 1491240371173196049 | Player registration confirmations |
+
+### Full Category Layout
+```
+1v1 League
+├── 1v1-mod-chat        [Text — mod only, no bot posting]
+├── 1v1-mod-logs        [Text — mod only, bot logs here]
+├── 1v1-mod-queue       [Text — mod only, bot queue state]
+├── 1v1-announcements   [Announcement]
+├── 1v1-rules           [Announcement — static, mod posts manually]
+├── 1v1-sign-up-here    [Text]
+├── 1v1-info            [Announcement — static, mod posts manually]
+├── 1v1-queue           [Text]
+├── 1v1-leaderboard     [Announcement]
+├── 1v1-match-results   [Text — bot only]
+├── 1v1-references      [Text — slash command lookups]
+├── 1v1-chat            [Text — general community]
+├── 1v1-match-threads   [Text — thread parent]
+├── 1v1 Voice Chat      [Voice]
+└── 1v1 Voice Chat 2    [Voice]
+```
+
+---
+
 ## Files in This Repo
 
 | File | Purpose |
 |---|---|
 | `CLAUDE.md` | This file — project context for Claude Code |
-| `clarifying-questions.md` | Open questions for Stadium to answer before/during build |
-| `architecture.md` | Detailed system architecture and data flow |
 | `D2R PvP 1v1 League - Matchups.csv` | Local snapshot of the Matchups sheet tab |
-| `General_rules.md` | General league rules (to be filled in) |
-| `Discord-group-chat-brainstorming.md` | Discord chat export with feature ideas (to be filled in) |
 | `Images/` | Screenshots of the Google Sheet structure |
+| `plan/` | Planning docs (gitignored — not shipped) |
+| `src/config/channels.ts` | Hardcoded Discord channel IDs for production server |
