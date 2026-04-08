@@ -10,10 +10,12 @@
     "deploy": "tsx src/deploy-commands.ts",
     "deploy:global": "tsx src/deploy-commands.ts --global",
     "lint": "eslint src --ext .ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@discordjs/rest": "^2.3.0",
+    "@prisma/client": "^5.22.0",
     "discord-api-types": "^0.37.97",
     "discord.js": "^14.0.0",
     "dotenv": "^16.4.5",
@@ -25,6 +27,7 @@
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
     "eslint": "^9.0.0",
+    "prisma": "^5.22.0",
     "tsx": "^4.19.0",
     "typescript": "^5.5.0"
   },

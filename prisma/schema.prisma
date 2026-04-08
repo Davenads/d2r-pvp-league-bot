@@ -1,0 +1,120 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum MatchType {
+  STANDARD
+  TEST_RULE
+  DEATHMATCH
+}
+
+enum MatchStatus {
+  PENDING      // reported by winner, awaiting opponent confirm
+  CONFIRMED    // both sides confirmed
+  DISPUTED     // opponent disputed the result
+  VOIDED       // admin voided the match
+}
+
+enum PlayerStatus {
+  ACTIVE
+  VACATION     // temporarily exempt from forced-match scheduler
+  REMOVED      // kicked from ladder (warning threshold hit or admin action)
+}
+
+// ─── Season ──────────────────────────────────────────────────────────────────
+
+model Season {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique            // e.g. "Season 1"
+  startedAt DateTime @default(now())
+  endedAt   DateTime?
+  active    Boolean  @default(true)
+
+  players   Player[]
+  matches   Match[]
+}
+
+// ─── Player ──────────────────────────────────────────────────────────────────
+
+model Player {
+  id              Int          @id @default(autoincrement())
+  discordId       String       @unique  // Discord snowflake (stable)
+  discordUsername String                // display name at time of last update
+  ign             String                // in-game name
+  build1          String                // canonical build name (required)
+  build2          String                // canonical build name (required, distinct from build1)
+  status          PlayerStatus @default(ACTIVE)
+  warnings        Int          @default(0)
+  registeredAt    DateTime     @default(now())
+  lastMatchAt     DateTime?             // updated on every confirmed match result
+
+  seasonId        Int
+  season          Season       @relation(fields: [seasonId], references: [id])
+
+  // Match relations
+  matchesAsP1     Match[]      @relation("MatchPlayer1")
+  matchesAsP2     Match[]      @relation("MatchPlayer2")
+  matchesWon      Match[]      @relation("MatchWinner")
+  warningRecords  Warning[]
+
+  @@index([discordId])
+  @@index([seasonId])
+}
+
+// ─── Match ───────────────────────────────────────────────────────────────────
+
+model Match {
+  id              Int         @id @default(autoincrement())
+  seasonId        Int
+  season          Season      @relation(fields: [seasonId], references: [id])
+
+  player1Id       Int
+  player1         Player      @relation("MatchPlayer1", fields: [player1Id], references: [id])
+
+  player2Id       Int
+  player2         Player      @relation("MatchPlayer2", fields: [player2Id], references: [id])
+
+  // Which builds were actually played (selected from each player's 2 registered builds)
+  build1Used      String      // player1's build for this match
+  build2Used      String      // player2's build for this match
+
+  winnerId        Int?
+  winner          Player?     @relation("MatchWinner", fields: [winnerId], references: [id])
+
+  type            MatchType   @default(STANDARD)
+  status          MatchStatus @default(PENDING)
+
+  // Thread ID of the auto-created Discord match thread
+  threadId        String?
+
+  reportedAt      DateTime    @default(now())
+  confirmedAt     DateTime?
+
+  @@index([seasonId])
+  @@index([player1Id])
+  @@index([player2Id])
+  @@index([status])
+}
+
+// ─── Warning ─────────────────────────────────────────────────────────────────
+
+model Warning {
+  id          Int      @id @default(autoincrement())
+  playerId    Int
+  player      Player   @relation(fields: [playerId], references: [id])
+
+  reason      String?
+  issuedBy    String   // Discord ID of the mod who issued it (or "system" for auto)
+  issuedAt    DateTime @default(now())
+  clearedAt   DateTime?
+  clearedBy   String?  // Discord ID of mod who cleared it, or null
+
+  @@index([playerId])
+}
