@@ -6,6 +6,7 @@ import { fetchBannedMatchups } from '../services/sheets.js';
 import { CacheKeys } from '../types/index.js';
 import { buildErrorEmbed, buildUnavailableEmbed, EMBED_COLORS } from '../utils/formatters.js';
 import { config } from '../config.js';
+import { getClassEmoji } from '../utils/classEmojis.js';
 
 interface BannedEntry {
   build: string;
@@ -76,13 +77,24 @@ export const command: Command = {
         return;
       }
 
-      const lines = filtered.map((e) =>
-        `**${e.build}** — banned vs: ${e.banned.join(', ')}`
-      );
+      const lines = filtered.map((e) => {
+        const emoji = getClassEmoji(e.build);
+        const buildLabel = emoji ? `${emoji} **${e.build}**` : `**${e.build}**`;
+        const bannedLabels = e.banned.map((b) => {
+          const bEmoji = getClassEmoji(b);
+          return bEmoji ? `${bEmoji} ${b}` : b;
+        });
+        return `${buildLabel} — banned vs: ${bannedLabels.join(', ')}`;
+      });
+
+      const filterEmoji = filterBuild ? getClassEmoji(filterBuild) : '';
+      const filterLabel = filterBuild
+        ? `${filterEmoji ? filterEmoji + ' ' : ''}${filterBuild}`
+        : undefined;
 
       const embed = new EmbedBuilder()
         .setColor(EMBED_COLORS.banned)
-        .setTitle(filterBuild ? `Banned Matchups — ${filterBuild}` : 'All Banned Matchups')
+        .setTitle(filterLabel ? `Banned Matchups — ${filterLabel}` : 'All Banned Matchups')
         .setDescription(lines.join('\n'));
 
       await interaction.editReply({ embeds: [embed] });

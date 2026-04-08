@@ -3,6 +3,7 @@ import type { Command } from '../types/index.js';
 import { getBuildChoices, resolveBuild } from '../utils/buildList.js';
 import { getDeathmatches } from '../services/matchup.js';
 import { buildErrorEmbed, buildUnavailableEmbed, EMBED_COLORS } from '../utils/formatters.js';
+import { getClassEmoji } from '../utils/classEmojis.js';
 
 export const command: Command = {
   data: new SlashCommandBuilder()
@@ -40,12 +41,17 @@ export const command: Command = {
         return;
       }
 
+      const emoji = getClassEmoji(build);
+      const buildLabel = emoji ? `${emoji} ${build}` : build;
       const embed = new EmbedBuilder()
         .setColor(EMBED_COLORS.rules)
-        .setTitle(`Deathmatch Alternatives — ${build}`)
+        .setTitle(`Deathmatch Alternatives — ${buildLabel}`)
         .setDescription(
           result.alternatives.length
-            ? result.alternatives.map((alt, i) => `${i + 1}. ${alt}`).join('\n')
+            ? result.alternatives.map((alt, i) => {
+                const altEmoji = getClassEmoji(alt);
+                return `${i + 1}. ${altEmoji ? altEmoji + ' ' : ''}${alt}`;
+              }).join('\n')
             : '*No deathmatch alternatives listed for this build.*'
         )
         .setFooter({ text: 'Contact a mod to trigger a deathmatch.' });

@@ -2,6 +2,7 @@ import { SlashCommandBuilder, ChatInputCommandInteraction, EmbedBuilder } from '
 import type { Command } from '../types/index.js';
 import { buildErrorEmbed, buildUnavailableEmbed, EMBED_COLORS } from '../utils/formatters.js';
 import { getGeneralRules } from '../services/content.js';
+import { ALL_CLASS_EMOJIS } from '../utils/classEmojis.js';
 
 // Discord embed description cap
 const EMBED_MAX = 4000;
@@ -30,7 +31,7 @@ export const command: Command = {
         new EmbedBuilder()
           .setColor(EMBED_COLORS.rules)
           .setTitle(i === 0 ? 'D2R 1v1 League — General Rules' : 'Rules (continued)')
-          .setDescription(chunk)
+          .setDescription(i === 0 ? `${ALL_CLASS_EMOJIS}\n\n${chunk}` : chunk)
           .setFooter(
             i === chunks.length - 1
               ? { text: 'Use /matchup <build> <build> for matchup-specific rules.' }

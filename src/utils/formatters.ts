@@ -1,5 +1,6 @@
 import { EmbedBuilder, Colors } from 'discord.js';
 import type { MatchupRules, LadderEntry } from '../types/index.js';
+import { getClassEmoji } from './classEmojis.js';
 
 // ── Colour palette ───────────────────────────────────────────────────────────
 
@@ -16,31 +17,40 @@ export const EMBED_COLORS = {
 // ── Matchup embeds ───────────────────────────────────────────────────────────
 
 export function buildBannedMatchupEmbed(buildA: string, buildB: string): EmbedBuilder {
+  const emojiA = getClassEmoji(buildA);
+  const emojiB = getClassEmoji(buildB);
+  const labelA = emojiA ? `${emojiA} ${buildA}` : buildA;
+  const labelB = emojiB ? `${emojiB} ${buildB}` : buildB;
   return new EmbedBuilder()
     .setColor(EMBED_COLORS.banned)
     .setTitle('Banned Matchup')
     .setDescription(
-      `**${buildA}** vs **${buildB}** is a **banned matchup** and cannot be played in the regular season.\n\nCheck \`/deathmatch\` for alternative opponents.`
+      `**${labelA}** vs **${labelB}** is a **banned matchup** and cannot be played in the regular season.\n\nCheck \`/deathmatch\` for alternative opponents.`
     );
 }
 
 export function buildMatchupEmbed(rules: MatchupRules): EmbedBuilder {
+  const emojiA = getClassEmoji(rules.buildA);
+  const emojiB = getClassEmoji(rules.buildB);
+  const labelA = emojiA ? `${emojiA} ${rules.buildA}` : rules.buildA;
+  const labelB = emojiB ? `${emojiB} ${rules.buildB}` : rules.buildB;
+
   const embed = new EmbedBuilder()
     .setColor(EMBED_COLORS.rules)
-    .setTitle(`${rules.buildA} vs ${rules.buildB}`)
+    .setTitle(`${labelA}  vs  ${labelB}`)
     .setFooter({ text: 'Rules sourced from D2R 1v1 League ruleset. Use /rules for general rules.' });
 
-  if (rules.rulesForA) {
-    embed.addFields({ name: `${rules.buildA} Rules`, value: rules.rulesForA, inline: false });
-  } else {
-    embed.addFields({ name: `${rules.buildA} Rules`, value: '*No specific restrictions.*', inline: false });
-  }
+  embed.addFields({
+    name: `${emojiA ? emojiA + ' ' : ''}${rules.buildA} Rules`,
+    value: rules.rulesForA || '*No specific restrictions.*',
+    inline: false,
+  });
 
-  if (rules.rulesForB) {
-    embed.addFields({ name: `${rules.buildB} Rules`, value: rules.rulesForB, inline: false });
-  } else {
-    embed.addFields({ name: `${rules.buildB} Rules`, value: '*No specific restrictions.*', inline: false });
-  }
+  embed.addFields({
+    name: `${emojiB ? emojiB + ' ' : ''}${rules.buildB} Rules`,
+    value: rules.rulesForB || '*No specific restrictions.*',
+    inline: false,
+  });
 
   return embed;
 }
@@ -51,7 +61,9 @@ export function buildLadderEmbed(entries: LadderEntry[], page: number, totalPage
   const rows = entries
     .map((e) => {
       const pct = (e.winPct * 100).toFixed(1);
-      return `**${e.rank}.** ${e.discordUsername} (${e.build}) — ${e.wins}W / ${e.losses}L (${pct}%) — ${e.points}pts`;
+      const emoji = getClassEmoji(e.build);
+      const buildDisplay = emoji ? `${emoji} ${e.build}` : e.build;
+      return `**${e.rank}.** ${e.discordUsername} (${buildDisplay}) — ${e.wins}W / ${e.losses}L (${pct}%) — ${e.points}pts`;
     })
     .join('\n');
 
@@ -70,13 +82,15 @@ export function buildRegistrationEmbed(
   build1: string,
   build2: string,
 ): EmbedBuilder {
+  const emoji1 = getClassEmoji(build1);
+  const emoji2 = getClassEmoji(build2);
   return new EmbedBuilder()
     .setColor(EMBED_COLORS.success)
     .setTitle('New Player Registered')
     .setDescription(`<@${discordId}> has joined the D2R 1v1 League!`)
     .addFields(
-      { name: 'Build 1', value: build1, inline: true },
-      { name: 'Build 2', value: build2, inline: true },
+      { name: 'Build 1', value: emoji1 ? `${emoji1} ${build1}` : build1, inline: true },
+      { name: 'Build 2', value: emoji2 ? `${emoji2} ${build2}` : build2, inline: true },
     )
     .setFooter({ text: `Discord: ${discordUsername}` })
     .setTimestamp();
