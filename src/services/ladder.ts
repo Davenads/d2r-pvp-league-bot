@@ -101,6 +101,56 @@ function makeIncrement(
 }
 
 /**
+ * Appends a new player row to the Ladder sheet on registration.
+ * Numeric stat columns are seeded to 0. Formula columns (Win%, Points, etc.)
+ * are left blank so the sheet can compute them.
+ *
+ * Column order (A–R):
+ *   A Rank | B Discord_Username | C Discord_UUID | D Build1 | E Build2
+ *   F Wins | G Losses | H Win% | I Points
+ *   J TR_W | K TR_L | L TR_W%
+ *   M DM_W | N DM_L | O Status | P Last_Match | Q Registered | R Notes
+ */
+export async function addPlayerToLadder(
+  discordId: string,
+  discordUsername: string,
+  build1: string,
+  build2: string,
+): Promise<void> {
+  const sheets = getWriteClient();
+  const today = new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+
+  // A full row seeded with zeros for stat columns; formula columns left blank
+  const row = [
+    '',              // A — Rank (sheet formula)
+    discordUsername, // B — Discord_Username
+    discordId,       // C — Discord_UUID
+    build1,          // D — Build1
+    build2,          // E — Build2
+    0,               // F — Wins
+    0,               // G — Losses
+    '',              // H — Win% (sheet formula)
+    '',              // I — Points (sheet formula)
+    0,               // J — TR_W
+    0,               // K — TR_L
+    '',              // L — TR_W% (sheet formula)
+    0,               // M — DM_W
+    0,               // N — DM_L
+    'Available',     // O — Status
+    '',              // P — Last_Match
+    today,           // Q — Registered
+    '',              // R — Notes
+  ];
+
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: config.google.sheetId,
+    range: `${LADDER_TAB}!A:R`,
+    valueInputOption: 'USER_ENTERED',
+    requestBody: { values: [row] },
+  });
+}
+
+/**
  * Writes confirmed match W/L increments to the Ladder sheet.
  *
  * @param winnerDiscordId - Discord snowflake of the winner

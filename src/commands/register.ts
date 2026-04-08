@@ -11,6 +11,7 @@ import { getBuildChoices, resolveBuild } from '../utils/buildList.js';
 import { buildErrorEmbed, buildRegistrationEmbed } from '../utils/formatters.js';
 import { prisma } from '../db/client.js';
 import { CHANNELS } from '../config/channels.js';
+import { addPlayerToLadder } from '../services/ladder.js';
 
 export const command: Command = {
   data: new SlashCommandBuilder()
@@ -101,6 +102,9 @@ export const command: Command = {
           seasonId: season.id,
         },
       });
+
+      // Add a row to the Ladder sheet (source of truth for standings)
+      await addPlayerToLadder(discordId, discordUsername, build1, build2);
 
       // Confirm to the registering player (ephemeral)
       await interaction.editReply({
