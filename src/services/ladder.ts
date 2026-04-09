@@ -41,6 +41,7 @@ const COL = {
   trLosses:   10,   // K
   dmWins:     12,   // M
   dmLosses:   13,   // N
+  status:     14,   // O
   lastMatch:  15,   // P
 } as const;
 
@@ -147,6 +148,32 @@ export async function addPlayerToLadder(
     range: `${LADDER_TAB}!A:R`,
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [row] },
+  });
+}
+
+/**
+ * Updates the Status column (O) for a player row in the Ladder sheet.
+ * Used to mark a player as "Removed" without deleting their row.
+ * No-ops silently if the player is not found in the sheet.
+ */
+export async function updatePlayerLadderStatus(
+  discordId: string,
+  status: 'Available' | 'Vacation' | 'Removed',
+): Promise<void> {
+  const sheets = getWriteClient();
+  const rows = await fetchLadderRaw();
+  const sheetRow = findPlayerRow(rows, discordId);
+
+  if (!sheetRow) {
+    console.warn(`[Ladder] updatePlayerLadderStatus: row not found for ${discordId}`);
+    return;
+  }
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: config.google.sheetId,
+    range: `${LADDER_TAB}!${colLetter(COL.status)}${sheetRow}`,
+    valueInputOption: 'USER_ENTERED',
+    requestBody: { values: [[status]] },
   });
 }
 

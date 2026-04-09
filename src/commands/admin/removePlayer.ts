@@ -10,6 +10,7 @@ import type { Command } from '../../types/index.js';
 import { buildErrorEmbed } from '../../utils/formatters.js';
 import { prisma } from '../../db/client.js';
 import { CHANNELS } from '../../config/channels.js';
+import { updatePlayerLadderStatus } from '../../services/ladder.js';
 
 export const command: Command = {
   data: new SlashCommandBuilder()
@@ -63,6 +64,9 @@ export const command: Command = {
         where: { id: player.id },
         data: { status: 'REMOVED' },
       });
+
+      // Mirror status to the Ladder sheet
+      await updatePlayerLadderStatus(target.id, 'Removed');
 
       await interaction.editReply({
         embeds: [
