@@ -143,12 +143,14 @@ export async function addPlayerToLadder(
     '',              // R — Notes
   ];
 
-  await sheets.spreadsheets.values.append({
+  const appendResponse = await sheets.spreadsheets.values.append({
     spreadsheetId: config.google.sheetId,
     range: `${LADDER_TAB}!A:R`,
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [row] },
   });
+  const updatedRange = appendResponse.data.updates?.updatedRange ?? 'unknown';
+  console.log(`[Ladder] addPlayerToLadder: appended row for ${discordId} (${discordUsername}) → ${updatedRange}`);
 }
 
 /**
@@ -184,6 +186,7 @@ export async function reactivatePlayerOnLadder(
     spreadsheetId: config.google.sheetId,
     requestBody: { valueInputOption: 'USER_ENTERED', data: updates },
   });
+  console.log(`[Ladder] reactivatePlayerOnLadder: updated sheet row ${sheetRow} for ${discordId} (${discordUsername})`);
 }
 
 /**
