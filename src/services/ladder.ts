@@ -152,6 +152,41 @@ export async function addPlayerToLadder(
 }
 
 /**
+ * Reactivates a previously removed player's existing Ladder sheet row.
+ * Updates Discord_Username (B), Build1 (D), Build2 (E), and Status (O) in place.
+ * Used when a removed player re-registers rather than appending a duplicate row.
+ */
+export async function reactivatePlayerOnLadder(
+  discordId: string,
+  discordUsername: string,
+  build1: string,
+  build2: string,
+): Promise<void> {
+  const sheets = getWriteClient();
+  const rows = await fetchLadderRaw();
+  const sheetRow = findPlayerRow(rows, discordId);
+
+  if (!sheetRow) {
+    // Row doesn't exist (edge case) — fall back to appending a fresh row
+    console.warn(`[Ladder] reactivatePlayerOnLadder: row not found for ${discordId}, appending fresh row`);
+    await addPlayerToLadder(discordId, discordUsername, build1, build2);
+    return;
+  }
+
+  const updates: sheets_v4.Schema$ValueRange[] = [
+    { range: `${LADDER_TAB}!B${sheetRow}`, values: [[discordUsername]] },
+    { range: `${LADDER_TAB}!D${sheetRow}`, values: [[build1]] },
+    { range: `${LADDER_TAB}!E${sheetRow}`, values: [[build2]] },
+    { range: `${LADDER_TAB}!${colLetter(COL.status)}${sheetRow}`, values: [['Available']] },
+  ];
+
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: config.google.sheetId,
+    requestBody: { valueInputOption: 'USER_ENTERED', data: updates },
+  });
+}
+
+/**
  * Updates the Status column (O) for a player row in the Ladder sheet.
  * Used to mark a player as "Removed" without deleting their row.
  * No-ops silently if the player is not found in the sheet.
