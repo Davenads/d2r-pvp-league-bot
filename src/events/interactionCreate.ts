@@ -5,6 +5,8 @@ import { buildErrorEmbed, EMBED_COLORS } from '../utils/formatters.js';
 import { prisma } from '../db/client.js';
 import { clearActiveMatch, setPlayerState, getMirrorRequest, deleteMirrorRequest, startMirrorMatch, setMatchThreadId } from '../services/queue.js';
 import { updateLadderResult } from '../services/ladder.js';
+import { cacheDel } from '../services/cache.js';
+import { CacheKeys } from '../types/index.js';
 import { CHANNELS } from '../config/channels.js';
 
 export const name = Events.InteractionCreate;
@@ -142,6 +144,9 @@ async function handleConfirmResult(interaction: ButtonInteraction, matchId: numb
     } catch (sheetErr) {
       console.error('[confirm_result] Sheet write-back failed:', sheetErr);
     }
+
+    // Invalidate ladder cache so next /ladder fetch reflects the new result
+    await cacheDel(CacheKeys.ladder());
 
     // Clear Redis state for both players
     await clearActiveMatch(reporterPlayer.discordId);

@@ -44,8 +44,8 @@ export const config = {
     url: optionalEnv('REDIS_URL', 'redis://localhost:6379'),
   },
   cache: {
-    ttlRules: parseInt(optionalEnv('CACHE_TTL_RULES', '3600'), 10),
-    ttlLadder: parseInt(optionalEnv('CACHE_TTL_LADDER', '60'), 10),
+    ttlRules: parseInt(optionalEnv('CACHE_TTL_RULES', '86400'), 10),
+    ttlLadder: parseInt(optionalEnv('CACHE_TTL_LADDER', '300'), 10),
   },
   league: {
     warningThreshold: parseInt(optionalEnv('WARNING_THRESHOLD', '5'), 10),
