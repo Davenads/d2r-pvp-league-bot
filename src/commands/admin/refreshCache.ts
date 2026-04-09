@@ -2,6 +2,7 @@ import { SlashCommandBuilder, ChatInputCommandInteraction, EmbedBuilder, Permiss
 import type { Command } from '../../types/index.js';
 import { cacheFlushPattern } from '../../services/cache.js';
 import { EMBED_COLORS } from '../../utils/formatters.js';
+import { assertModRole } from '../../utils/modGuard.js';
 
 const TAB_PATTERNS: Record<string, string> = {
   matchups: 'd2r:matchup:*',
@@ -35,6 +36,7 @@ export const command: Command = {
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     await interaction.deferReply({ ephemeral: true });
+    if (!await assertModRole(interaction)) return;
 
     const tab = interaction.options.getString('tab') ?? 'all';
     const pattern = TAB_PATTERNS[tab];

@@ -10,6 +10,7 @@ import type { Command } from '../../types/index.js';
 import { buildErrorEmbed } from '../../utils/formatters.js';
 import { prisma } from '../../db/client.js';
 import { CHANNELS } from '../../config/channels.js';
+import { assertModRole } from '../../utils/modGuard.js';
 
 export const command: Command = {
   data: new SlashCommandBuilder()
@@ -25,6 +26,7 @@ export const command: Command = {
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     await interaction.deferReply({ ephemeral: true });
+    if (!await assertModRole(interaction)) return;
 
     const target = interaction.options.getUser('player', true);
 

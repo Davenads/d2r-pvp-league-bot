@@ -8,6 +8,7 @@ import type { Command } from '../../types/index.js';
 import { EMBED_COLORS } from '../../utils/formatters.js';
 import { getQueueList } from '../../services/queue.js';
 import { prisma } from '../../db/client.js';
+import { assertModRole } from '../../utils/modGuard.js';
 
 export const command: Command = {
   data: new SlashCommandBuilder()
@@ -17,6 +18,7 @@ export const command: Command = {
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     await interaction.deferReply({ ephemeral: true });
+    if (!await assertModRole(interaction)) return;
 
     try {
       const queue = await getQueueList();

@@ -13,6 +13,7 @@ import { prisma } from '../../db/client.js';
 import { clearActiveMatch, setPlayerState } from '../../services/queue.js';
 import { updateLadderResult } from '../../services/ladder.js';
 import { CHANNELS } from '../../config/channels.js';
+import { assertModRole } from '../../utils/modGuard.js';
 
 export const command: Command = {
   data: new SlashCommandBuilder()
@@ -44,6 +45,7 @@ export const command: Command = {
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     await interaction.deferReply({ ephemeral: true });
+    if (!await assertModRole(interaction)) return;
 
     const p1User = interaction.options.getUser('player1', true);
     const p2User = interaction.options.getUser('player2', true);
