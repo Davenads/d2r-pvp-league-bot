@@ -143,14 +143,27 @@ export async function addPlayerToLadder(
     '',              // R — Notes
   ];
 
-  const appendResponse = await sheets.spreadsheets.values.append({
+  // Determine the true next empty row by scanning for the last row with a Discord UUID
+  // in column C. This avoids the Sheets `append` phantom-row problem where formatting or
+  // data-validation rules extending far down the sheet cause `append` to write at row 1000+.
+  const rows = await fetchLadderRaw();
+  let lastDataIdx = 0; // 0-based array index of last row with real player data (0 = header)
+  for (let i = rows.length - 1; i >= 1; i--) {
+    if (rows[i]?.[COL.discordUuid]?.trim()) {
+      lastDataIdx = i;
+      break;
+    }
+  }
+  // rows[i] corresponds to sheet row i+1; next empty row is lastDataIdx+2
+  const nextSheetRow = lastDataIdx + 2;
+
+  await sheets.spreadsheets.values.update({
     spreadsheetId: config.google.sheetId,
-    range: `${LADDER_TAB}!A:R`,
+    range: `${LADDER_TAB}!A${nextSheetRow}:R${nextSheetRow}`,
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [row] },
   });
-  const updatedRange = appendResponse.data.updates?.updatedRange ?? 'unknown';
-  console.log(`[Ladder] addPlayerToLadder: appended row for ${discordId} (${discordUsername}) → ${updatedRange}`);
+  console.log(`[Ladder] addPlayerToLadder: wrote row ${nextSheetRow} for ${discordId} (${discordUsername})`);
 }
 
 /**
