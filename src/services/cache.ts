@@ -5,9 +5,11 @@ let client: Redis | null = null;
 
 function getClient(): Redis {
   if (!client) {
+    const isTls = config.redis.url.startsWith('rediss://');
     client = new Redis(config.redis.url, {
       lazyConnect: true,
       maxRetriesPerRequest: 3,
+      ...(isTls && { tls: { rejectUnauthorized: false } }),
     });
 
     client.on('error', (err) => {
