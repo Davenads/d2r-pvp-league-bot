@@ -13,6 +13,7 @@
 import { google, sheets_v4 } from 'googleapis';
 import { config, resolveGoogleCredentials } from '../config.js';
 import { MatchType } from '@prisma/client';
+import { abbreviateBuild } from '../utils/buildList.js';
 
 // ── Write-enabled Sheets client ───────────────────────────────────────────────
 
@@ -132,11 +133,11 @@ export async function addPlayerToLadder(
     '',              // A — Rank (sheet formula)
     discordUsername, // B — Discord_Username
     discordId,       // C — Discord_UUID
-    builds[0] ?? '', // D — Build_1
-    builds[1] ?? '', // E — Build_2
-    builds[2] ?? '', // F — Build_3
-    builds[3] ?? '', // G — Build_4
-    builds[4] ?? '', // H — Build_5
+    builds[0] ? abbreviateBuild(builds[0]) : '', // D — Build_1
+    builds[1] ? abbreviateBuild(builds[1]) : '', // E — Build_2
+    builds[2] ? abbreviateBuild(builds[2]) : '', // F — Build_3
+    builds[3] ? abbreviateBuild(builds[3]) : '', // G — Build_4
+    builds[4] ? abbreviateBuild(builds[4]) : '', // H — Build_5
     0,               // I — Wins
     0,               // J — Losses
     '',              // K — Win% (sheet formula)
@@ -198,11 +199,11 @@ export async function reactivatePlayerOnLadder(
 
   const updates: sheets_v4.Schema$ValueRange[] = [
     { range: `${LADDER_TAB}!B${sheetRow}`, values: [[discordUsername]] },
-    { range: `${LADDER_TAB}!D${sheetRow}`, values: [[builds[0] ?? '']] },
-    { range: `${LADDER_TAB}!E${sheetRow}`, values: [[builds[1] ?? '']] },
-    { range: `${LADDER_TAB}!F${sheetRow}`, values: [[builds[2] ?? '']] },
-    { range: `${LADDER_TAB}!G${sheetRow}`, values: [[builds[3] ?? '']] },
-    { range: `${LADDER_TAB}!H${sheetRow}`, values: [[builds[4] ?? '']] },
+    { range: `${LADDER_TAB}!D${sheetRow}`, values: [[builds[0] ? abbreviateBuild(builds[0]) : '']] },
+    { range: `${LADDER_TAB}!E${sheetRow}`, values: [[builds[1] ? abbreviateBuild(builds[1]) : '']] },
+    { range: `${LADDER_TAB}!F${sheetRow}`, values: [[builds[2] ? abbreviateBuild(builds[2]) : '']] },
+    { range: `${LADDER_TAB}!G${sheetRow}`, values: [[builds[3] ? abbreviateBuild(builds[3]) : '']] },
+    { range: `${LADDER_TAB}!H${sheetRow}`, values: [[builds[4] ? abbreviateBuild(builds[4]) : '']] },
     { range: `${LADDER_TAB}!${colLetter(COL.status)}${sheetRow}`, values: [['Available']] },
   ];
 

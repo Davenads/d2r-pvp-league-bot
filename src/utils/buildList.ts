@@ -116,6 +116,36 @@ export function resolveBuild(input: string): string | undefined {
 }
 
 /**
+ * Class name → abbreviated prefix for Ladder sheet display.
+ * Internal/Prisma state always uses the full canonical name;
+ * only sheet-write calls use this to shorten column widths.
+ */
+const CLASS_ABBREVIATIONS: Record<string, string> = {
+  'Amazon':       'Zon',
+  'Assassin':     'Sin',
+  'Barbarian':    'Barb',
+  'Druid':        'Dru',
+  'Necromancer':  'Necro',
+  'Paladin':      'Din',
+  'Sorceress':    'Sorc',
+};
+
+/**
+ * Converts a canonical build name to its abbreviated sheet form.
+ * e.g. "Amazon - CS Zon" → "Zon - CS Zon"
+ *      "Paladin - Hammerdin" → "Din - Hammerdin"
+ * Falls back to the original string if no abbreviation matches.
+ */
+export function abbreviateBuild(buildName: string): string {
+  for (const [className, abbrev] of Object.entries(CLASS_ABBREVIATIONS)) {
+    if (buildName.startsWith(className + ' - ')) {
+      return abbrev + buildName.slice(className.length);
+    }
+  }
+  return buildName;
+}
+
+/**
  * Returns autocomplete choices filtered by the partial input.
  * Limits to 25 results (Discord autocomplete max).
  */
