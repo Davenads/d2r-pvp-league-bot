@@ -9,6 +9,7 @@ import {
 import type { Command } from '../types/index.js';
 import { getBuildChoices, resolveBuild } from '../utils/buildList.js';
 import { buildErrorEmbed, buildRegistrationEmbed } from '../utils/formatters.js';
+import { getClassEmoji } from '../utils/classEmojis.js';
 import { prisma } from '../db/client.js';
 import { CHANNELS } from '../config/channels.js';
 import { addPlayerToLadder, reactivatePlayerOnLadder } from '../services/ladder.js';
@@ -157,7 +158,10 @@ export const command: Command = {
       }
 
       // Confirm to the registering player (ephemeral)
-      const buildFields = builds.map((b, i) => ({ name: `Build ${i + 1}`, value: b, inline: true }));
+      const buildFields = builds.map((b, i) => {
+        const emoji = getClassEmoji(b);
+        return { name: `Build ${i + 1}`, value: emoji ? `${emoji} ${b}` : b, inline: true };
+      });
       await interaction.editReply({
         embeds: [
           new EmbedBuilder()
@@ -181,7 +185,10 @@ export const command: Command = {
         const logFields = [
           { name: 'Player', value: `<@${discordId}> (${discordUsername})`, inline: true },
           { name: 'Season', value: season.name, inline: true },
-          ...builds.map((b, i) => ({ name: `Build ${i + 1}`, value: b, inline: true })),
+          ...builds.map((b, i) => {
+            const emoji = getClassEmoji(b);
+            return { name: `Build ${i + 1}`, value: emoji ? `${emoji} ${b}` : b, inline: true };
+          }),
         ];
         await logChannel.send({
           embeds: [
