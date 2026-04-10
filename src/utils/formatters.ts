@@ -81,15 +81,17 @@ export function buildRegistrationEmbed(
   discordId: string,
   builds: string[],  // 2–5 canonical build names
 ): EmbedBuilder {
-  const buildFields = builds.map((b, i) => {
-    const emoji = getClassEmoji(b);
-    return { name: `Build ${i + 1}`, value: emoji ? `${emoji} ${b}` : b, inline: true };
-  });
+  const buildList = builds
+    .map((b) => {
+      const emoji = getClassEmoji(b);
+      return emoji ? `${emoji} ${b}` : b;
+    })
+    .join('\n');
   return new EmbedBuilder()
     .setColor(EMBED_COLORS.success)
     .setTitle('New Player Registered')
     .setDescription(`<@${discordId}> has joined the D2R 1v1 League!`)
-    .addFields(...buildFields)
+    .addFields({ name: 'Registered Builds', value: buildList, inline: false })
     .setFooter({ text: `Discord: ${discordUsername}` })
     .setTimestamp();
 }

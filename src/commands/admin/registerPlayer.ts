@@ -158,17 +158,16 @@ export const command: Command = {
         await addPlayerToLadder(target.id, target.username, builds);
       }
 
-      const buildFields = builds.map((b, i) => {
-        const emoji = getClassEmoji(b);
-        return { name: `Build ${i + 1}`, value: emoji ? `${emoji} ${b}` : b, inline: true };
-      });
+      const buildList = builds
+        .map((b) => { const e = getClassEmoji(b); return e ? `${e} ${b}` : b; })
+        .join('\n');
       await interaction.editReply({
         embeds: [
           new EmbedBuilder()
             .setColor(Colors.Green)
             .setTitle('Player Registered')
             .setDescription(`<@${target.id}> has been registered for **${season.name}**.`)
-            .addFields(...buildFields)
+            .addFields({ name: 'Registered Builds', value: buildList, inline: false })
             .setFooter({ text: `Registered by ${interaction.user.username}` })
             .setTimestamp(),
         ],
@@ -185,10 +184,7 @@ export const command: Command = {
           { name: 'Player', value: `<@${target.id}> (${target.username})`, inline: true },
           { name: 'Registered By', value: `<@${interaction.user.id}>`, inline: true },
           { name: 'Season', value: season.name, inline: true },
-          ...builds.map((b, i) => {
-            const emoji = getClassEmoji(b);
-            return { name: `Build ${i + 1}`, value: emoji ? `${emoji} ${b}` : b, inline: true };
-          }),
+          { name: 'Registered Builds', value: buildList, inline: false },
         ];
         await logChannel.send({
           embeds: [

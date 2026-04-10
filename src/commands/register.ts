@@ -158,17 +158,16 @@ export const command: Command = {
       }
 
       // Confirm to the registering player (ephemeral)
-      const buildFields = builds.map((b, i) => {
-        const emoji = getClassEmoji(b);
-        return { name: `Build ${i + 1}`, value: emoji ? `${emoji} ${b}` : b, inline: true };
-      });
+      const buildList = builds
+        .map((b) => { const e = getClassEmoji(b); return e ? `${e} ${b}` : b; })
+        .join('\n');
       await interaction.editReply({
         embeds: [
           new EmbedBuilder()
             .setColor(Colors.Green)
             .setTitle('Registration Successful')
             .setDescription(`You've been registered for **${season.name}**!`)
-            .addFields(...buildFields)
+            .addFields({ name: 'Registered Builds', value: buildList, inline: false })
             .setFooter({ text: 'Good luck in the league!' }),
         ],
       });
@@ -185,10 +184,7 @@ export const command: Command = {
         const logFields = [
           { name: 'Player', value: `<@${discordId}> (${discordUsername})`, inline: true },
           { name: 'Season', value: season.name, inline: true },
-          ...builds.map((b, i) => {
-            const emoji = getClassEmoji(b);
-            return { name: `Build ${i + 1}`, value: emoji ? `${emoji} ${b}` : b, inline: true };
-          }),
+          { name: 'Registered Builds', value: buildList, inline: false },
         ];
         await logChannel.send({
           embeds: [
