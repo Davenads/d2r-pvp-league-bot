@@ -45,10 +45,13 @@ export const command: Command = {
           if (season) {
             const player = await prisma.player.findFirst({
               where: { discordId, seasonId: season.id },
-              select: { discordUsername: true, build1: true, build2: true },
+              select: { discordUsername: true, build1: true, build2: true, build3: true, build4: true, build5: true },
             });
             if (player) {
-              label = `**${player.discordUsername}** — ${player.build1} / ${player.build2}`;
+              const builds = [player.build1, player.build2, player.build3, player.build4, player.build5]
+                .filter((b): b is string => !!b)
+                .join(' / ');
+              label = `**${player.discordUsername}** — ${builds}`;
             }
           }
           return `**${i + 1}.** ${label}`;

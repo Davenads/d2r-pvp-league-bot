@@ -29,8 +29,11 @@ export interface LadderEntry {
   rank: number;
   discordUsername: string;
   discordId: string;
-  build: string;
+  build1: string;
   build2?: string;
+  build3?: string;
+  build4?: string;
+  build5?: string;
   wins: number;
   losses: number;
   winPct: number;

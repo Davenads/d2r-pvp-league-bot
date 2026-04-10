@@ -61,8 +61,8 @@ export function buildLadderEmbed(entries: LadderEntry[], page: number, totalPage
   const rows = entries
     .map((e) => {
       const pct = (e.winPct * 100).toFixed(1);
-      const emoji = getClassEmoji(e.build);
-      const buildDisplay = emoji ? `${emoji} ${e.build}` : e.build;
+      const emoji = getClassEmoji(e.build1);
+      const buildDisplay = emoji ? `${emoji} ${e.build1}` : e.build1;
       return `**${e.rank}.** ${e.discordUsername} (${buildDisplay}) — ${e.wins}W / ${e.losses}L (${pct}%) — ${e.points}pts`;
     })
     .join('\n');
@@ -79,19 +79,17 @@ export function buildLadderEmbed(entries: LadderEntry[], page: number, totalPage
 export function buildRegistrationEmbed(
   discordUsername: string,
   discordId: string,
-  build1: string,
-  build2: string,
+  builds: string[],  // 2–5 canonical build names
 ): EmbedBuilder {
-  const emoji1 = getClassEmoji(build1);
-  const emoji2 = getClassEmoji(build2);
+  const buildFields = builds.map((b, i) => {
+    const emoji = getClassEmoji(b);
+    return { name: `Build ${i + 1}`, value: emoji ? `${emoji} ${b}` : b, inline: true };
+  });
   return new EmbedBuilder()
     .setColor(EMBED_COLORS.success)
     .setTitle('New Player Registered')
     .setDescription(`<@${discordId}> has joined the D2R 1v1 League!`)
-    .addFields(
-      { name: 'Build 1', value: emoji1 ? `${emoji1} ${build1}` : build1, inline: true },
-      { name: 'Build 2', value: emoji2 ? `${emoji2} ${build2}` : build2, inline: true },
-    )
+    .addFields(...buildFields)
     .setFooter({ text: `Discord: ${discordUsername}` })
     .setTimestamp();
 }

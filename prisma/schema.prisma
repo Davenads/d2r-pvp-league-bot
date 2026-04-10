@@ -49,6 +49,9 @@ model Player {
   discordUsername String                // display name at time of last update
   build1          String                // canonical build name (required)
   build2          String                // canonical build name (required, distinct from build1)
+  build3          String?               // optional third build
+  build4          String?               // optional fourth build
+  build5          String?               // optional fifth build
   status          PlayerStatus @default(ACTIVE)
   warnings        Int          @default(0)
   registeredAt    DateTime     @default(now())

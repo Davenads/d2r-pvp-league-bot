@@ -88,14 +88,19 @@ export const command: Command = {
       }
 
       // Validate BOTH players have the requested build registered
-      const requesterHasBuild = requesterPlayer.build1 === build || requesterPlayer.build2 === build;
-      const opponentHasBuild = opponentPlayer.build1 === build || opponentPlayer.build2 === build;
+      const requesterBuilds = [requesterPlayer.build1, requesterPlayer.build2, requesterPlayer.build3, requesterPlayer.build4, requesterPlayer.build5]
+        .filter((b): b is string => !!b);
+      const opponentBuilds = [opponentPlayer.build1, opponentPlayer.build2, opponentPlayer.build3, opponentPlayer.build4, opponentPlayer.build5]
+        .filter((b): b is string => !!b);
+
+      const requesterHasBuild = requesterBuilds.includes(build);
+      const opponentHasBuild = opponentBuilds.includes(build);
 
       if (!requesterHasBuild) {
         await interaction.editReply({
           embeds: [buildErrorEmbed(
             `You don't have **${build}** registered.\n` +
-            `Your builds: **${requesterPlayer.build1}** / **${requesterPlayer.build2}**`
+            `Your builds: **${requesterBuilds.join(' / ')}**`
           )],
         });
         return;
@@ -105,7 +110,7 @@ export const command: Command = {
         await interaction.editReply({
           embeds: [buildErrorEmbed(
             `**${opponent.username}** doesn't have **${build}** registered.\n` +
-            `Their builds: **${opponentPlayer.build1}** / **${opponentPlayer.build2}**`
+            `Their builds: **${opponentBuilds.join(' / ')}**`
           )],
         });
         return;

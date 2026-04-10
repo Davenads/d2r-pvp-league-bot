@@ -29,15 +29,36 @@ export const command: Command = {
     .addStringOption((opt) =>
       opt
         .setName('build_1')
-        .setDescription('First build')
+        .setDescription('First build (required)')
         .setRequired(true)
         .setAutocomplete(true)
     )
     .addStringOption((opt) =>
       opt
         .setName('build_2')
-        .setDescription('Second build')
+        .setDescription('Second build (required)')
         .setRequired(true)
+        .setAutocomplete(true)
+    )
+    .addStringOption((opt) =>
+      opt
+        .setName('build_3')
+        .setDescription('Third build (optional)')
+        .setRequired(false)
+        .setAutocomplete(true)
+    )
+    .addStringOption((opt) =>
+      opt
+        .setName('build_4')
+        .setDescription('Fourth build (optional)')
+        .setRequired(false)
+        .setAutocomplete(true)
+    )
+    .addStringOption((opt) =>
+      opt
+        .setName('build_5')
+        .setDescription('Fifth build (optional)')
+        .setRequired(false)
         .setAutocomplete(true)
     ),
 
@@ -51,22 +72,32 @@ export const command: Command = {
     if (!await assertModRole(interaction)) return;
 
     const target = interaction.options.getUser('player', true);
-    const rawB1 = interaction.options.getString('build_1', true);
-    const rawB2 = interaction.options.getString('build_2', true);
 
-    const build1 = resolveBuild(rawB1);
-    const build2 = resolveBuild(rawB2);
+    const rawInputs = [
+      interaction.options.getString('build_1', true),
+      interaction.options.getString('build_2', true),
+      interaction.options.getString('build_3', false),
+      interaction.options.getString('build_4', false),
+      interaction.options.getString('build_5', false),
+    ].filter((v): v is string => v !== null && v.trim() !== '');
 
-    if (!build1) {
-      await interaction.editReply({ embeds: [buildErrorEmbed(`Unknown build: **${rawB1}**. Use the autocomplete list.`)] });
-      return;
+    const resolved: Array<string | null> = rawInputs.map((r) => resolveBuild(r) ?? null);
+
+    for (let i = 0; i < rawInputs.length; i++) {
+      if (resolved[i] === null) {
+        await interaction.editReply({
+          embeds: [buildErrorEmbed(`Unknown build: **${rawInputs[i]}**. Use the autocomplete list.`)],
+        });
+        return;
+      }
     }
-    if (!build2) {
-      await interaction.editReply({ embeds: [buildErrorEmbed(`Unknown build: **${rawB2}**. Use the autocomplete list.`)] });
-      return;
-    }
-    if (build1 === build2) {
-      await interaction.editReply({ embeds: [buildErrorEmbed('The two builds must be different.')] });
+
+    const builds = resolved as string[];
+
+    if (new Set(builds).size !== builds.length) {
+      await interaction.editReply({
+        embeds: [buildErrorEmbed('All registered builds must be different.')],
+      });
       return;
     }
 
@@ -82,80 +113,82 @@ export const command: Command = {
       });
 
       if (existing && existing.status !== 'REMOVED') {
+        const existingBuilds = [existing.build1, existing.build2, existing.build3, existing.build4, existing.build5]
+          .filter((b): b is string => !!b);
+        const buildList = existingBuilds.map((b, i) => `• Build ${i + 1}: **${b}**`).join('\n');
         await interaction.editReply({
           embeds: [buildErrorEmbed(
-            `**${target.username}** is already registered for **${season.name}**:\n` +
-            `• Build 1: **${existing.build1}**\n` +
-            `• Build 2: **${existing.build2}**`
+            `**${target.username}** is already registered for **${season.name}**:\n${buildList}`
           )],
         });
         return;
       }
 
       if (existing && existing.status === 'REMOVED') {
-        // Reinstate removed player
         await prisma.player.update({
           where: { id: existing.id },
           data: {
             discordUsername: target.username,
-            build1,
-            build2,
+            build1: builds[0],
+            build2: builds[1],
+            build3: builds[2] ?? null,
+            build4: builds[3] ?? null,
+            build5: builds[4] ?? null,
             status: 'ACTIVE',
             warnings: 0,
             registeredAt: new Date(),
             lastMatchAt: null,
           },
         });
-        await reactivatePlayerOnLadder(target.id, target.username, build1, build2);
+        await reactivatePlayerOnLadder(target.id, target.username, builds);
       } else {
         await prisma.player.create({
           data: {
             discordId: target.id,
             discordUsername: target.username,
-            build1,
-            build2,
+            build1: builds[0],
+            build2: builds[1],
+            build3: builds[2] ?? null,
+            build4: builds[3] ?? null,
+            build5: builds[4] ?? null,
             seasonId: season.id,
           },
         });
-        await addPlayerToLadder(target.id, target.username, build1, build2);
+        await addPlayerToLadder(target.id, target.username, builds);
       }
 
+      const buildFields = builds.map((b, i) => ({ name: `Build ${i + 1}`, value: b, inline: true }));
       await interaction.editReply({
         embeds: [
           new EmbedBuilder()
             .setColor(Colors.Green)
             .setTitle('Player Registered')
             .setDescription(`<@${target.id}> has been registered for **${season.name}**.`)
-            .addFields(
-              { name: 'Build 1', value: build1, inline: true },
-              { name: 'Build 2', value: build2, inline: true },
-            )
+            .addFields(...buildFields)
             .setFooter({ text: `Registered by ${interaction.user.username}` })
             .setTimestamp(),
         ],
       });
 
-      // Public announcement
       const signUpChannel = interaction.client.channels.cache.get(CHANNELS.signUpHere) as TextChannel | undefined;
       if (signUpChannel) {
-        await signUpChannel.send({ embeds: [buildRegistrationEmbed(target.username, target.id, build1, build2)] });
+        await signUpChannel.send({ embeds: [buildRegistrationEmbed(target.username, target.id, builds)] });
       }
 
-      // Mod log
       const logChannel = interaction.client.channels.cache.get(CHANNELS.modLogs) as TextChannel | undefined;
       if (logChannel) {
+        const logFields = [
+          { name: 'Player', value: `<@${target.id}> (${target.username})`, inline: true },
+          { name: 'Registered By', value: `<@${interaction.user.id}>`, inline: true },
+          { name: 'Season', value: season.name, inline: true },
+          ...builds.map((b, i) => ({ name: `Build ${i + 1}`, value: b, inline: true })),
+        ];
         await logChannel.send({
           embeds: [
             new EmbedBuilder()
               .setColor(Colors.Blurple)
               .setTitle('Admin: Player Registered')
-              .addFields(
-                { name: 'Player', value: `<@${target.id}> (${target.username})`, inline: true },
-                { name: 'Registered By', value: `<@${interaction.user.id}>`, inline: true },
-                { name: 'Season', value: season.name, inline: true },
-                { name: 'Build 1', value: build1, inline: true },
-                { name: 'Build 2', value: build2, inline: true },
-              )
+              .addFields(...logFields)
               .setTimestamp(),
           ],
         });

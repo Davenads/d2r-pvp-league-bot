@@ -3,10 +3,11 @@
  * on match confirmation.
  *
  * Column layout (0-indexed from A):
- *   A=0 Rank | B=1 Discord_Username | C=2 Discord_UUID | D=3 Build1 | E=4 Build2
- *   F=5 Wins | G=6 Losses | H=7 Win% | I=8 Points
- *   J=9 TR_W | K=10 TR_L | L=11 TR_W%
- *   M=12 DM_W | N=13 DM_L | O=14 Status | P=15 Last_Match | Q=16 Registered | R=17 Notes
+ *   A=0 Rank | B=1 Discord_Username | C=2 Discord_UUID
+ *   D=3 Build_1 | E=4 Build_2 | F=5 Build_3 | G=6 Build_4 | H=7 Build_5
+ *   I=8 W | J=9 L | K=10 W% | L=11 Points
+ *   M=12 TR_W | N=13 TR_L | O=14 TR_W%
+ *   P=15 DM_W | Q=16 DM_L | R=17 Status | S=18 Last_Match | T=19 Registered | U=20 Notes
  */
 
 import { google, sheets_v4 } from 'googleapis';
@@ -35,14 +36,19 @@ function getWriteClient(): sheets_v4.Sheets {
 const LADDER_TAB = 'Ladder';
 const COL = {
   discordUuid: 2,   // C (0-indexed)
-  wins:        5,   // F
-  losses:      6,   // G
-  trWins:      9,   // J
-  trLosses:   10,   // K
-  dmWins:     12,   // M
-  dmLosses:   13,   // N
-  status:     14,   // O
-  lastMatch:  15,   // P
+  build1:      3,   // D
+  build2:      4,   // E
+  build3:      5,   // F
+  build4:      6,   // G
+  build5:      7,   // H
+  wins:        8,   // I
+  losses:      9,   // J
+  trWins:     12,   // M
+  trLosses:   13,   // N
+  dmWins:     15,   // P
+  dmLosses:   16,   // Q
+  status:     17,   // R
+  lastMatch:  18,   // S
 } as const;
 
 /** Converts a 0-indexed column number to A1 column letter(s). */
@@ -65,7 +71,7 @@ async function fetchLadderRaw(): Promise<string[][]> {
   const sheets = getWriteClient();
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: config.google.sheetId,
-    range: `${LADDER_TAB}!A:R`,
+    range: `${LADDER_TAB}!A:U`,
   });
   return (response.data.values ?? []) as string[][];
 }
@@ -106,17 +112,17 @@ function makeIncrement(
  * Numeric stat columns are seeded to 0. Formula columns (Win%, Points, etc.)
  * are left blank so the sheet can compute them.
  *
- * Column order (A–R):
- *   A Rank | B Discord_Username | C Discord_UUID | D Build1 | E Build2
- *   F Wins | G Losses | H Win% | I Points
- *   J TR_W | K TR_L | L TR_W%
- *   M DM_W | N DM_L | O Status | P Last_Match | Q Registered | R Notes
+ * Column order (A–U):
+ *   A Rank | B Discord_Username | C Discord_UUID
+ *   D Build_1 | E Build_2 | F Build_3 | G Build_4 | H Build_5
+ *   I Wins | J Losses | K Win% | L Points
+ *   M TR_W | N TR_L | O TR_W%
+ *   P DM_W | Q DM_L | R Status | S Last_Match | T Registered | U Notes
  */
 export async function addPlayerToLadder(
   discordId: string,
   discordUsername: string,
-  build1: string,
-  build2: string,
+  builds: string[],  // 2–5 builds; builds[0] = primary, builds[1] = secondary, etc.
 ): Promise<void> {
   const sheets = getWriteClient();
   const today = new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
@@ -126,21 +132,24 @@ export async function addPlayerToLadder(
     '',              // A — Rank (sheet formula)
     discordUsername, // B — Discord_Username
     discordId,       // C — Discord_UUID
-    build1,          // D — Build1
-    build2,          // E — Build2
-    0,               // F — Wins
-    0,               // G — Losses
-    '',              // H — Win% (sheet formula)
-    '',              // I — Points (sheet formula)
-    0,               // J — TR_W
-    0,               // K — TR_L
-    '',              // L — TR_W% (sheet formula)
-    0,               // M — DM_W
-    0,               // N — DM_L
-    'Available',     // O — Status
-    '',              // P — Last_Match
-    today,           // Q — Registered
-    '',              // R — Notes
+    builds[0] ?? '', // D — Build_1
+    builds[1] ?? '', // E — Build_2
+    builds[2] ?? '', // F — Build_3
+    builds[3] ?? '', // G — Build_4
+    builds[4] ?? '', // H — Build_5
+    0,               // I — Wins
+    0,               // J — Losses
+    '',              // K — Win% (sheet formula)
+    '',              // L — Points (sheet formula)
+    0,               // M — TR_W
+    0,               // N — TR_L
+    '',              // O — TR_W% (sheet formula)
+    0,               // P — DM_W
+    0,               // Q — DM_L
+    'Available',     // R — Status
+    '',              // S — Last_Match
+    today,           // T — Registered
+    '',              // U — Notes
   ];
 
   // Determine the true next empty row by scanning for the last row with a Discord UUID
@@ -159,7 +168,7 @@ export async function addPlayerToLadder(
 
   await sheets.spreadsheets.values.update({
     spreadsheetId: config.google.sheetId,
-    range: `${LADDER_TAB}!A${nextSheetRow}:R${nextSheetRow}`,
+    range: `${LADDER_TAB}!A${nextSheetRow}:U${nextSheetRow}`,
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [row] },
   });
@@ -174,8 +183,7 @@ export async function addPlayerToLadder(
 export async function reactivatePlayerOnLadder(
   discordId: string,
   discordUsername: string,
-  build1: string,
-  build2: string,
+  builds: string[],  // 2–5 builds
 ): Promise<void> {
   const sheets = getWriteClient();
   const rows = await fetchLadderRaw();
@@ -184,14 +192,17 @@ export async function reactivatePlayerOnLadder(
   if (!sheetRow) {
     // Row doesn't exist (edge case) — fall back to appending a fresh row
     console.warn(`[Ladder] reactivatePlayerOnLadder: row not found for ${discordId}, appending fresh row`);
-    await addPlayerToLadder(discordId, discordUsername, build1, build2);
+    await addPlayerToLadder(discordId, discordUsername, builds);
     return;
   }
 
   const updates: sheets_v4.Schema$ValueRange[] = [
     { range: `${LADDER_TAB}!B${sheetRow}`, values: [[discordUsername]] },
-    { range: `${LADDER_TAB}!D${sheetRow}`, values: [[build1]] },
-    { range: `${LADDER_TAB}!E${sheetRow}`, values: [[build2]] },
+    { range: `${LADDER_TAB}!D${sheetRow}`, values: [[builds[0] ?? '']] },
+    { range: `${LADDER_TAB}!E${sheetRow}`, values: [[builds[1] ?? '']] },
+    { range: `${LADDER_TAB}!F${sheetRow}`, values: [[builds[2] ?? '']] },
+    { range: `${LADDER_TAB}!G${sheetRow}`, values: [[builds[3] ?? '']] },
+    { range: `${LADDER_TAB}!H${sheetRow}`, values: [[builds[4] ?? '']] },
     { range: `${LADDER_TAB}!${colLetter(COL.status)}${sheetRow}`, values: [['Available']] },
   ];
 

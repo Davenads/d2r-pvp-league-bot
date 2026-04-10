@@ -16,19 +16,40 @@ import { addPlayerToLadder, reactivatePlayerOnLadder } from '../services/ladder.
 export const command: Command = {
   data: new SlashCommandBuilder()
     .setName('register')
-    .setDescription('Register for the D2R 1v1 League with exactly 2 builds')
+    .setDescription('Register for the D2R 1v1 League (2 builds required, up to 5)')
     .addStringOption((opt) =>
       opt
         .setName('build_1')
-        .setDescription('Your first build')
+        .setDescription('Your first build (required)')
         .setRequired(true)
         .setAutocomplete(true)
     )
     .addStringOption((opt) =>
       opt
         .setName('build_2')
-        .setDescription('Your second build')
+        .setDescription('Your second build (required)')
         .setRequired(true)
+        .setAutocomplete(true)
+    )
+    .addStringOption((opt) =>
+      opt
+        .setName('build_3')
+        .setDescription('Your third build (optional)')
+        .setRequired(false)
+        .setAutocomplete(true)
+    )
+    .addStringOption((opt) =>
+      opt
+        .setName('build_4')
+        .setDescription('Your fourth build (optional)')
+        .setRequired(false)
+        .setAutocomplete(true)
+    )
+    .addStringOption((opt) =>
+      opt
+        .setName('build_5')
+        .setDescription('Your fifth build (optional)')
+        .setRequired(false)
         .setAutocomplete(true)
     ),
 
@@ -38,26 +59,37 @@ export const command: Command = {
   },
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
-    // Ephemeral so only the user sees it
     await interaction.deferReply({ ephemeral: true });
 
-    const rawB1 = interaction.options.getString('build_1', true);
-    const rawB2 = interaction.options.getString('build_2', true);
+    // Collect raw inputs (build_1 and build_2 are required; 3–5 are optional)
+    const rawInputs = [
+      interaction.options.getString('build_1', true),
+      interaction.options.getString('build_2', true),
+      interaction.options.getString('build_3', false),
+      interaction.options.getString('build_4', false),
+      interaction.options.getString('build_5', false),
+    ].filter((v): v is string => v !== null && v.trim() !== '');
 
-    // Resolve builds
-    const build1 = resolveBuild(rawB1);
-    const build2 = resolveBuild(rawB2);
+    // Resolve each raw input to a canonical build name
+    const resolved: Array<string | null> = rawInputs.map((r) => resolveBuild(r) ?? null);
 
-    if (!build1) {
-      await interaction.editReply({ embeds: [buildErrorEmbed(`Unknown build: **${rawB1}**. Use the autocomplete list.`)] });
-      return;
+    // Check for unresolved builds
+    for (let i = 0; i < rawInputs.length; i++) {
+      if (resolved[i] === null) {
+        await interaction.editReply({
+          embeds: [buildErrorEmbed(`Unknown build: **${rawInputs[i]}**. Use the autocomplete list.`)],
+        });
+        return;
+      }
     }
-    if (!build2) {
-      await interaction.editReply({ embeds: [buildErrorEmbed(`Unknown build: **${rawB2}**. Use the autocomplete list.`)] });
-      return;
-    }
-    if (build1 === build2) {
-      await interaction.editReply({ embeds: [buildErrorEmbed('Your two builds must be different.')] });
+
+    const builds = resolved as string[];
+
+    // Uniqueness check
+    if (new Set(builds).size !== builds.length) {
+      await interaction.editReply({
+        embeds: [buildErrorEmbed('All registered builds must be different.')],
+      });
       return;
     }
 
@@ -65,7 +97,6 @@ export const command: Command = {
     const discordUsername = interaction.user.username;
 
     try {
-      // Find the active season
       const season = await prisma.season.findFirst({ where: { active: true } });
       if (!season) {
         await interaction.editReply({
@@ -74,20 +105,18 @@ export const command: Command = {
         return;
       }
 
-      // Check for existing registration in this season
       const existing = await prisma.player.findFirst({
         where: { discordId, seasonId: season.id },
       });
 
       if (existing && existing.status !== 'REMOVED') {
-        // Active or vacation player — block re-registration
+        const existingBuilds = [existing.build1, existing.build2, existing.build3, existing.build4, existing.build5]
+          .filter((b): b is string => !!b);
+        const buildList = existingBuilds.map((b, i) => `• Build ${i + 1}: **${b}**`).join('\n');
         await interaction.editReply({
           embeds: [
             buildErrorEmbed(
-              `You are already registered for **${season.name}** with:\n` +
-              `• Build 1: **${existing.build1}**\n` +
-              `• Build 2: **${existing.build2}**\n\n` +
-              `To change your builds, contact a mod.`
+              `You are already registered for **${season.name}** with:\n${buildList}\n\nTo change your builds, contact a mod.`
             ),
           ],
         });
@@ -95,39 +124,47 @@ export const command: Command = {
       }
 
       if (existing && existing.status === 'REMOVED') {
-        // Re-registration after removal — reinstate the existing record
         await prisma.player.update({
           where: { id: existing.id },
           data: {
             discordUsername,
-            build1,
-            build2,
+            build1: builds[0],
+            build2: builds[1],
+            build3: builds[2] ?? null,
+            build4: builds[3] ?? null,
+            build5: builds[4] ?? null,
             status: 'ACTIVE',
             warnings: 0,
             registeredAt: new Date(),
             lastMatchAt: null,
           },
         });
-        await reactivatePlayerOnLadder(discordId, discordUsername, build1, build2);
+        await reactivatePlayerOnLadder(discordId, discordUsername, builds);
       } else {
-        // Brand new registration
         await prisma.player.create({
-          data: { discordId, discordUsername, build1, build2, seasonId: season.id },
+          data: {
+            discordId,
+            discordUsername,
+            build1: builds[0],
+            build2: builds[1],
+            build3: builds[2] ?? null,
+            build4: builds[3] ?? null,
+            build5: builds[4] ?? null,
+            seasonId: season.id,
+          },
         });
-        await addPlayerToLadder(discordId, discordUsername, build1, build2);
+        await addPlayerToLadder(discordId, discordUsername, builds);
       }
 
       // Confirm to the registering player (ephemeral)
+      const buildFields = builds.map((b, i) => ({ name: `Build ${i + 1}`, value: b, inline: true }));
       await interaction.editReply({
         embeds: [
           new EmbedBuilder()
             .setColor(Colors.Green)
             .setTitle('Registration Successful')
             .setDescription(`You've been registered for **${season.name}**!`)
-            .addFields(
-              { name: 'Build 1', value: build1, inline: true },
-              { name: 'Build 2', value: build2, inline: true },
-            )
+            .addFields(...buildFields)
             .setFooter({ text: 'Good luck in the league!' }),
         ],
       });
@@ -135,23 +172,23 @@ export const command: Command = {
       // Public announcement in #1v1-sign-up-here
       const signUpChannel = interaction.client.channels.cache.get(CHANNELS.signUpHere) as TextChannel | undefined;
       if (signUpChannel) {
-        await signUpChannel.send({ embeds: [buildRegistrationEmbed(discordUsername, discordId, build1, build2)] });
+        await signUpChannel.send({ embeds: [buildRegistrationEmbed(discordUsername, discordId, builds)] });
       }
 
       // Mod log
       const logChannel = interaction.client.channels.cache.get(CHANNELS.modLogs) as TextChannel | undefined;
       if (logChannel) {
+        const logFields = [
+          { name: 'Player', value: `<@${discordId}> (${discordUsername})`, inline: true },
+          { name: 'Season', value: season.name, inline: true },
+          ...builds.map((b, i) => ({ name: `Build ${i + 1}`, value: b, inline: true })),
+        ];
         await logChannel.send({
           embeds: [
             new EmbedBuilder()
               .setColor(Colors.Blurple)
               .setTitle('Player Registered')
-              .addFields(
-                { name: 'Player', value: `<@${discordId}> (${discordUsername})`, inline: true },
-                { name: 'Season', value: season.name, inline: true },
-                { name: 'Build 1', value: build1, inline: true },
-                { name: 'Build 2', value: build2, inline: true },
-              )
+              .addFields(...logFields)
               .setTimestamp(),
           ],
         });

@@ -329,29 +329,39 @@ export async function startMirrorMatch(
 
 // ── Build selection ───────────────────────────────────────────────────────────
 
+/** Returns all non-null registered builds for a player as an ordered array. */
+function getPlayerBuilds(p: {
+  build1: string;
+  build2: string;
+  build3: string | null;
+  build4: string | null;
+  build5: string | null;
+}): string[] {
+  return [p.build1, p.build2, p.build3, p.build4, p.build5].filter((b): b is string => !!b);
+}
+
 /**
  * Selects the builds to use for a match between two players.
  *
- * Current strategy: prefer the first non-banned pairing from all 4 combinations.
- * Falls back to build1 vs build1 if all are banned (shouldn't happen in practice).
+ * Current strategy: prefer the first non-banned pairing from all NxM combinations
+ * (iterating p1 builds outer, p2 builds inner). Falls back to build1 vs build1
+ * if all pairings are banned (shouldn't happen in practice).
  *
  * TODO: Replace with "least-disadvantaged matchup" algorithm once Stadium
  *       defines the scoring criteria (matchup-matrix-based scoring TBD).
  */
 async function selectBuilds(
-  p1: { build1: string; build2: string },
-  p2: { build1: string; build2: string },
+  p1: { build1: string; build2: string; build3: string | null; build4: string | null; build5: string | null },
+  p2: { build1: string; build2: string; build3: string | null; build4: string | null; build5: string | null },
 ): Promise<{ build1: string; build2: string }> {
-  const pairs: Array<[string, string]> = [
-    [p1.build1, p2.build1],
-    [p1.build1, p2.build2],
-    [p1.build2, p2.build1],
-    [p1.build2, p2.build2],
-  ];
+  const p1Builds = getPlayerBuilds(p1);
+  const p2Builds = getPlayerBuilds(p2);
 
-  for (const [b1, b2] of pairs) {
-    const banned = await isMatchupBanned(b1, b2);
-    if (!banned) return { build1: b1, build2: b2 };
+  for (const b1 of p1Builds) {
+    for (const b2 of p2Builds) {
+      const banned = await isMatchupBanned(b1, b2);
+      if (!banned) return { build1: b1, build2: b2 };
+    }
   }
 
   // All combos banned — return default (edge case)

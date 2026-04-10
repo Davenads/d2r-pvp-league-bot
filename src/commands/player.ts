@@ -110,8 +110,13 @@ export const command: Command = {
         .setTitle(`${target.username} — ${season.name}`)
         .setThumbnail(target.displayAvatarURL())
         .addFields(
-          { name: 'Build 1', value: player.build1, inline: true },
-          { name: 'Build 2', value: player.build2, inline: true },
+          {
+            name: 'Registered Builds',
+            value: [player.build1, player.build2, player.build3, player.build4, player.build5]
+              .filter((b): b is string => !!b)
+              .join(' / '),
+            inline: false,
+          },
           { name: 'Status', value: `${statusEmoji[player.status] ?? ''} ${statusLabel[player.status] ?? player.status}`, inline: true },
           { name: 'Standard Record', value: wlString(std.wins, std.losses), inline: true },
           { name: 'Test Rule Record', value: wlString(tr.wins, tr.losses), inline: true },
