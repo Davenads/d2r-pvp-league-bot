@@ -15,7 +15,6 @@
 import { REST, Routes } from 'discord.js';
 import { readdirSync } from 'fs';
 import { join } from 'path';
-import { pathToFileURL } from 'url';
 import { config } from './config.js';
 import type { Command } from './types/index.js';
 
@@ -29,7 +28,7 @@ async function collectCommandData(): Promise<object[]> {
     return readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
       entry.isDirectory()
         ? walk(join(dir, entry.name))
-        : entry.name.endsWith('.ts') || entry.name.endsWith('.js')
+        : !entry.name.endsWith('.d.ts') && (entry.name.endsWith('.ts') || entry.name.endsWith('.js'))
         ? [join(dir, entry.name)]
         : []
     );
@@ -38,7 +37,7 @@ async function collectCommandData(): Promise<object[]> {
   const files = walk(commandsPath);
 
   for (const file of files) {
-    const module = await import(pathToFileURL(file).href) as { command?: Command };
+    const module = await import(file) as { command?: Command };
     if (module.command) {
       data.push(module.command.data.toJSON());
     }
