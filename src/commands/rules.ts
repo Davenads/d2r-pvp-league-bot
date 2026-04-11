@@ -16,7 +16,13 @@ export const command: Command = {
       const sections = parseRulesIntoSections(lines);
       const embeds = buildRulesEmbeds(sections, 'rules');
 
-      await interaction.editReply({ embeds });
+      // Send each embed as its own message to stay under Discord's 6000-char
+      // total-per-message limit across all combined embeds.
+      const [first, ...rest] = embeds;
+      await interaction.editReply({ embeds: [first] });
+      for (const embed of rest) {
+        await interaction.followUp({ embeds: [embed] });
+      }
     } catch (err) {
       console.error('[/rules]', err);
       await interaction.editReply({
