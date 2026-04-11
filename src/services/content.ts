@@ -1,5 +1,5 @@
 import { cacheGet, cacheSet } from './cache.js';
-import { fetchGeneralRules, fetchFaq } from './sheets.js';
+import { fetchGeneralRules, fetchTestRules, fetchFaq } from './sheets.js';
 import { CacheKeys } from '../types/index.js';
 import { config } from '../config.js';
 
@@ -20,6 +20,23 @@ export async function getGeneralRules(): Promise<string[]> {
     .filter(Boolean) as string[];
 
   await cacheSet(CacheKeys.rulesGeneral(), lines, config.cache.ttlRules);
+  return lines;
+}
+
+/**
+ * Returns all test rules as an array of non-empty strings.
+ * Each element is one line from the 'Test 1v1 Rules' sheet tab.
+ */
+export async function getTestRules(): Promise<string[]> {
+  const cached = await cacheGet<string[]>(CacheKeys.rulesTest());
+  if (cached) return cached;
+
+  const rows = await fetchTestRules();
+  const lines = rows
+    .flatMap((row) => row.map((cell) => cell?.trim()))
+    .filter(Boolean) as string[];
+
+  await cacheSet(CacheKeys.rulesTest(), lines, config.cache.ttlRules);
   return lines;
 }
 

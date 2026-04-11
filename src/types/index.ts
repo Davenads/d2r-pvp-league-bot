@@ -65,6 +65,7 @@ export const CacheKeys = {
   banned: () => 'd2r:banned',
   deathmatch: (build: string) => `d2r:deathmatch:${build}`,
   rulesGeneral: () => 'd2r:rules:general',
+  rulesTest: () => 'd2r:rules:test',
   faq: () => 'd2r:faq',
   ladder: () => 'd2r:ladder',
   // Queue / match state

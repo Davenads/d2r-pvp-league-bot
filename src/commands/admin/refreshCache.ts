@@ -9,6 +9,7 @@ const TAB_PATTERNS: Record<string, string> = {
   banned: 'd2r:banned*',
   deathmatches: 'd2r:deathmatch:*',
   rules: 'd2r:rules:*',
+  testRules: 'd2r:rules:test*',
   faq: 'd2r:faq*',
   ladder: 'd2r:ladder*',
   all: 'd2r:*',
@@ -29,6 +30,7 @@ export const command: Command = {
           { name: 'Banned Matchups', value: 'banned' },
           { name: 'Deathmatches', value: 'deathmatches' },
           { name: 'General Rules', value: 'rules' },
+          { name: 'Test Rules', value: 'testRules' },
           { name: 'FAQ', value: 'faq' },
           { name: 'Ladder', value: 'ladder' },
         )

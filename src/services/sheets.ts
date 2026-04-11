@@ -8,6 +8,7 @@ export const SHEET_TABS = {
   banned: 'Banned matchups',
   deathmatches: 'Matchups: Deathmatches',
   rules: '1v1 Rules',
+  testRules: 'Test 1v1 Rules',
   questions: 'Questions',
   ladder: 'Ladder',
 } as const;
@@ -76,6 +77,13 @@ export async function fetchDeathmatches(): Promise<string[][]> {
  */
 export async function fetchGeneralRules(): Promise<string[][]> {
   return readRange(SHEET_TABS.rules);
+}
+
+/**
+ * Returns the Test 1v1 Rules tab content.
+ */
+export async function fetchTestRules(): Promise<string[][]> {
+  return readRange(SHEET_TABS.testRules);
 }
 
 /**
