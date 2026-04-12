@@ -37,6 +37,7 @@ export const command: Command = {
           { name: 'Standard', value: 'STANDARD' },
           { name: 'Test Rule', value: 'TEST_RULE' },
           { name: 'Deathmatch', value: 'DEATHMATCH' },
+          { name: 'Tournament', value: 'TOURNAMENT' },
         )
     )
     .addStringOption((opt) =>
@@ -120,7 +121,7 @@ export const command: Command = {
         where: { id: match.id },
         data: {
           winnerId: winnerRecord.id,
-          type: matchTypeRaw as 'STANDARD' | 'TEST_RULE' | 'DEATHMATCH',
+          type: matchTypeRaw as 'STANDARD' | 'TEST_RULE' | 'DEATHMATCH' | 'TOURNAMENT',
           status: 'CONFIRMED',
           confirmedAt: new Date(),
         },

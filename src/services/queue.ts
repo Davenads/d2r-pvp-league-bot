@@ -350,7 +350,7 @@ function getPlayerBuilds(p: {
  * TODO: Replace with "least-disadvantaged matchup" algorithm once Stadium
  *       defines the scoring criteria (matchup-matrix-based scoring TBD).
  */
-async function selectBuilds(
+export async function selectBuilds(
   p1: { build1: string; build2: string; build3: string | null; build4: string | null; build5: string | null },
   p2: { build1: string; build2: string; build3: string | null; build4: string | null; build5: string | null },
 ): Promise<{ build1: string; build2: string }> {

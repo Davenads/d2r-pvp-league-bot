@@ -13,6 +13,7 @@ enum MatchType {
   STANDARD
   TEST_RULE
   DEATHMATCH
+  TOURNAMENT
 }
 
 enum MatchStatus {

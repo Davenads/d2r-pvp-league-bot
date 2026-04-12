@@ -44,6 +44,7 @@ const COL = {
   build5:      7,   // H
   wins:        8,   // I
   losses:      9,   // J
+  points:     11,   // L — bot-managed; no sheet formula
   trWins:     12,   // M
   trLosses:   13,   // N
   dmWins:     15,   // P
@@ -141,7 +142,7 @@ export async function addPlayerToLadder(
     0,               // I — Wins
     0,               // J — Losses
     '',              // K — Win% (sheet formula)
-    '',              // L — Points (sheet formula)
+    0,               // L — Points (bot-managed)
     0,               // M — TR_W
     0,               // N — TR_L
     '',              // O — TR_W% (sheet formula)
@@ -272,12 +273,20 @@ export async function updateLadderResult(
   if (matchType === 'STANDARD') {
     updates.push(makeIncrement(rows, winnerRow, COL.wins));
     updates.push(makeIncrement(rows, loserRow, COL.losses));
+    updates.push(makeIncrement(rows, winnerRow, COL.points, 1));  // +1 pt winner
   } else if (matchType === 'TEST_RULE') {
     updates.push(makeIncrement(rows, winnerRow, COL.trWins));
     updates.push(makeIncrement(rows, loserRow, COL.trLosses));
+    updates.push(makeIncrement(rows, winnerRow, COL.points, 1));  // +1 pt winner
   } else if (matchType === 'DEATHMATCH') {
     updates.push(makeIncrement(rows, winnerRow, COL.dmWins));
     updates.push(makeIncrement(rows, loserRow, COL.dmLosses));
+    updates.push(makeIncrement(rows, winnerRow, COL.points, 1));  // +1 pt winner
+  } else if (matchType === 'TOURNAMENT') {
+    updates.push(makeIncrement(rows, winnerRow, COL.wins));       // counts toward regular W
+    updates.push(makeIncrement(rows, loserRow, COL.losses));      // counts toward regular L
+    updates.push(makeIncrement(rows, winnerRow, COL.points, 3));  // +3 pts winner
+    updates.push(makeIncrement(rows, loserRow, COL.points, 1));   // +1 pt loser
   }
 
   // Update Last_Match for both players
