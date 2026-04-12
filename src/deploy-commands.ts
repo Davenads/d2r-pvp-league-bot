@@ -15,8 +15,11 @@
 import { REST, Routes } from 'discord.js';
 import { readdirSync } from 'fs';
 import { join } from 'path';
+import { fileURLToPath, pathToFileURL } from 'url';
 import { config } from './config.js';
 import type { Command } from './types/index.js';
+
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
 const isGlobal = process.argv.includes('--global');
 
@@ -37,7 +40,7 @@ async function collectCommandData(): Promise<object[]> {
   const files = walk(commandsPath);
 
   for (const file of files) {
-    const module = await import(file) as { command?: Command };
+    const module = await import(pathToFileURL(file).href) as { command?: Command };
     if (module.command) {
       data.push(module.command.data.toJSON());
     }
