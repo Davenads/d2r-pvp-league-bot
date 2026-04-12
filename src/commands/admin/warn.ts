@@ -2,7 +2,6 @@ import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   EmbedBuilder,
-  PermissionFlagsBits,
   Colors,
   TextChannel,
 } from 'discord.js';
@@ -17,7 +16,6 @@ export const command: Command = {
   data: new SlashCommandBuilder()
     .setName('admin-warn')
     .setDescription('Issue a warning to a player (mod only)')
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addUserOption((opt) =>
       opt
         .setName('player')

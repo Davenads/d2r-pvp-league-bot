@@ -13,7 +13,6 @@ import {
   Colors,
   TextChannel,
   ChannelType,
-  PermissionFlagsBits,
 } from 'discord.js';
 import type { ThreadChannel } from 'discord.js';
 import type { Command } from '../../types/index.js';
@@ -28,7 +27,6 @@ export const command: Command = {
   data: new SlashCommandBuilder()
     .setName('admin-queue-player')
     .setDescription('Place a registered player into the match queue on their behalf (mod only)')
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addUserOption((opt) =>
       opt
         .setName('player')

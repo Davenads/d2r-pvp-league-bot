@@ -2,7 +2,6 @@ import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   EmbedBuilder,
-  PermissionFlagsBits,
   Colors,
 } from 'discord.js';
 import type { Command } from '../../types/index.js';
@@ -14,7 +13,6 @@ export const command: Command = {
   data: new SlashCommandBuilder()
     .setName('admin-season')
     .setDescription('Manage league seasons (mod only)')
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addSubcommand((sub) =>
       sub
         .setName('open')

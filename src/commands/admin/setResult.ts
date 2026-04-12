@@ -2,7 +2,6 @@ import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   EmbedBuilder,
-  PermissionFlagsBits,
   Colors,
   TextChannel,
   ThreadChannel,
@@ -19,7 +18,6 @@ export const command: Command = {
   data: new SlashCommandBuilder()
     .setName('admin-set-result')
     .setDescription('Override or set a match result (mod only)')
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addUserOption((opt) =>
       opt.setName('player1').setDescription('First player in the match').setRequired(true)
     )

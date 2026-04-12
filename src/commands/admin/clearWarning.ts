@@ -2,7 +2,6 @@ import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   EmbedBuilder,
-  PermissionFlagsBits,
   Colors,
   TextChannel,
 } from 'discord.js';
@@ -16,7 +15,6 @@ export const command: Command = {
   data: new SlashCommandBuilder()
     .setName('admin-clear-warning')
     .setDescription("Clear a player's most recent active warning (mod only)")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addUserOption((opt) =>
       opt
         .setName('player')

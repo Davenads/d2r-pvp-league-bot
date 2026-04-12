@@ -2,7 +2,6 @@ import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   EmbedBuilder,
-  PermissionFlagsBits,
 } from 'discord.js';
 import type { Command } from '../../types/index.js';
 import { EMBED_COLORS } from '../../utils/formatters.js';
@@ -13,8 +12,7 @@ import { assertModRole } from '../../utils/modGuard.js';
 export const command: Command = {
   data: new SlashCommandBuilder()
     .setName('admin-view-queue')
-    .setDescription('View the current match queue (mod only)')
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+    .setDescription('View the current match queue (mod only)'),
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     await interaction.deferReply({ ephemeral: true });

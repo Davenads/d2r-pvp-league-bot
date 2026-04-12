@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, ChatInputCommandInteraction, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
+import { SlashCommandBuilder, ChatInputCommandInteraction, EmbedBuilder } from 'discord.js';
 import type { Command } from '../../types/index.js';
 import { cacheFlushPattern } from '../../services/cache.js';
 import { EMBED_COLORS } from '../../utils/formatters.js';
@@ -19,7 +19,6 @@ export const command: Command = {
   data: new SlashCommandBuilder()
     .setName('refresh-cache')
     .setDescription('Force-refresh the bot cache from Google Sheets (mod only)')
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addStringOption((opt) =>
       opt
         .setName('tab')

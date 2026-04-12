@@ -13,7 +13,6 @@ import {
   EmbedBuilder,
   Colors,
   TextChannel,
-  PermissionFlagsBits,
 } from 'discord.js';
 import type { Command } from '../../types/index.js';
 import { buildErrorEmbed, EMBED_COLORS } from '../../utils/formatters.js';
@@ -25,7 +24,6 @@ export const command: Command = {
   data: new SlashCommandBuilder()
     .setName('admin-clear-player-state')
     .setDescription('Reset a player\'s queue/match state to idle (mod only — Redis only, no Postgres changes)')
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addUserOption((opt) =>
       opt
         .setName('player')

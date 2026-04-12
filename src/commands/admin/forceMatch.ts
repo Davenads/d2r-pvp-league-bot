@@ -14,8 +14,7 @@ import {
   EmbedBuilder,
   Colors,
   TextChannel,
-  ChannelType,
-  PermissionFlagsBits,
+  ChannelType,
 } from 'discord.js';
 import type { ThreadChannel } from 'discord.js';
 import type { Command } from '../../types/index.js';
@@ -37,7 +36,6 @@ export const command: Command = {
   data: new SlashCommandBuilder()
     .setName('admin-forcematch')
     .setDescription('Force a tournament match between two players — winner +3 pts, loser +1 pt (mod only)')
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addUserOption((opt) =>
       opt.setName('player1').setDescription('First player').setRequired(true)
     )

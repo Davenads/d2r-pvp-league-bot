@@ -10,8 +10,7 @@ import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   EmbedBuilder,
-  Colors,
-  PermissionFlagsBits,
+  Colors,
 } from 'discord.js';
 import type { Command } from '../../types/index.js';
 import { buildErrorEmbed, EMBED_COLORS } from '../../utils/formatters.js';
@@ -23,7 +22,6 @@ export const command: Command = {
   data: new SlashCommandBuilder()
     .setName('admin-view-player-state')
     .setDescription("View a player's current queue/match state without modifying it (mod only)")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addUserOption((opt) =>
       opt
         .setName('player')

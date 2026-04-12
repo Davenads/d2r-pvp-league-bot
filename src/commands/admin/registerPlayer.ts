@@ -3,7 +3,6 @@ import {
   ChatInputCommandInteraction,
   AutocompleteInteraction,
   EmbedBuilder,
-  PermissionFlagsBits,
   Colors,
   TextChannel,
 } from 'discord.js';
@@ -20,7 +19,6 @@ export const command: Command = {
   data: new SlashCommandBuilder()
     .setName('admin-register')
     .setDescription('Register a player on their behalf (mod only)')
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addUserOption((opt) =>
       opt
         .setName('player')
