@@ -98,8 +98,12 @@ export async function postMatchAnnouncementEmbed(
       { name: `<@${p1Id}> plays`, value: matchup.build1, inline: true },
       { name: `<@${p2Id}> plays`, value: matchup.build2, inline: true },
       { name: 'Rules', value: matchTypeLine, inline: false },
+      {
+        name: 'When finished',
+        value: 'The **winner** should use `/report-win` to record the result.\nFor any disputes, contact a **1v1 moderator**.',
+        inline: false,
+      },
     )
-    .setFooter({ text: 'Report the result with /report-win when done.' })
     .setTimestamp();
 
   await thread.send({

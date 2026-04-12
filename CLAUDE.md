@@ -236,7 +236,13 @@ NODE_ENV=development
 
 12. **Queue is FIFO and private.** Queue membership is never exposed to other players — only mods can view it via `/admin-view-queue`. This prevents cherry-picking opponents. When a player joins the queue, they are immediately matched with the next player already in queue (if one exists). On match, both players are set to `in_match` state in Redis immediately (preventing re-queue), a private thread is created, the bot randomly selects a non-banned pairing (tagged STANDARD or DEATHMATCH), announces it, and creates the Prisma `Match` record immediately.
 
-17. **Leaderboard display is rank + name only.** The `/ladder` command shows everyone in their ranked position with no W/L, points, or win% visible. Stadium's rationale: hiding the score gap between #1 and #2 prevents players from being discouraged and encourages everyone to keep grinding. Points are tracked internally but never displayed publicly.
+17. **Leaderboard display is rank + name only.** The `/ladder` command shows everyone in their ranked position with no W/L, points, or win% visible. Stadium's rationale: hiding the score gap between #1 and #2 prevents players from being discouraged and encourages everyone to keep grinding. Points are tracked internally but never displayed publicly. Rank is determined by the Google Sheet formula: primary sort = hidden points; tiebreaker 1 = W/L%; tiebreaker 2 = total wins.
+
+18. **Result reporting is winner-initiated, no confirmation required.** The winner uses `/report-win` to record a result. No opponent confirmation step and no time window. The match thread instructs both players: winner uses `/report-win` when done; disputes go to a 1v1 moderator directly.
+
+19. **Registration is open all season.** `/register` has no sign-up window restriction — players can join the league at any time during an active season.
+
+20. **Deathmatch tab symmetry is one-directional.** When checking if a pairing is a deathmatch, the bot checks if EITHER build lists the other as a deathmatch opponent in the `Matchups: Deathmatches` tab. A mutual listing is not required.
 
 13. **Forced match cadence.** Players on the ladder are expected to play approximately every 3 days. A scheduler checks for players whose last match (or queue join) exceeds this window and issues a forced match assignment requiring an "I'm ready" acknowledgment.
 
