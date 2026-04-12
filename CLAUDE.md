@@ -218,7 +218,7 @@ NODE_ENV=development
 
 3. **Build registration uses a fixed autocomplete list, not free text.** This was an explicit design requirement from the brainstorming chat ("choosing from a list of available builds to maintain data integrity"). Free-form build entry breaks matchup automation.
 
-4. **Players may register multiple builds.** When two queued players are matched, the bot selects the "least disadvantaged matchup" from all possible build pairings. The algorithm for this is TBD — see clarifying-questions.md.
+4. **Players may register multiple builds (up to 5).** When two queued players are matched, the bot computes all NxM build pairings and filters out any that are banned. The full list of available (non-banned) matchups is presented to the players via a Discord StringSelectMenu in the private match thread. The players choose which matchup they want to play. The Prisma `Match` record is only created **after** both players confirm the selected matchup. If all pairings are banned, an override prompt is shown. The selection is stored as a `PendingMatchSelection` in Redis (30-minute TTL) identified by a UUID nonce.
 
 5. **Two result recording modes.** Stadium explicitly requested a way to track test-rule match outcomes separately from regular match outcomes. Both flows look the same to players but are stored/counted differently.
 
@@ -234,7 +234,7 @@ NODE_ENV=development
 
 11. **Deathmatch alternatives.** Each build has up to 5 deathmatch opponents listed. These are drawn from the `Matchups: Deathmatches` sheet tab.
 
-12. **Queue is FIFO and private.** Queue membership is never exposed to other players — only mods can view it via `/admin-view-queue`. This prevents cherry-picking opponents. When a player joins the queue, they are immediately matched with the next player already in queue (if one exists).
+12. **Queue is FIFO and private.** Queue membership is never exposed to other players — only mods can view it via `/admin-view-queue`. This prevents cherry-picking opponents. When a player joins the queue, they are immediately matched with the next player already in queue (if one exists). On match, both players are set to `in_match` state in Redis immediately (preventing re-queue), a private thread is created, and the matchup selection UI is posted. No DB `Match` record exists until the matchup is confirmed.
 
 13. **Forced match cadence.** Players on the ladder are expected to play approximately every 3 days. A scheduler checks for players whose last match (or queue join) exceeds this window and issues a forced match assignment requiring an "I'm ready" acknowledgment.
 
