@@ -80,6 +80,8 @@ export const CacheKeys = {
   mirrorRequest: (nonce: string) => `d2r:mirror:req:${nonce}`,
   // Forced match assignment (set by scheduler, cleared by /im-ready)
   forcedMatch: (discordId: string) => `d2r:forced:${discordId}`,
+  // Leaderboard — stores the Discord message ID of the pinned standings embed
+  leaderboardMsgId: () => 'd2r:leaderboard:msgid',
 } as const;
 
 // ── Mirror request type ───────────────────────────────────────────────────────

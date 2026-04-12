@@ -14,6 +14,7 @@ import { updateLadderResult } from '../services/ladder.js';
 import { cacheDel } from '../services/cache.js';
 import { CacheKeys } from '../types/index.js';
 import { CHANNELS } from '../config/channels.js';
+import { updateLeaderboardEmbed } from '../services/leaderboardEmbed.js';
 
 export const command: Command = {
   data: new SlashCommandBuilder()
@@ -122,6 +123,11 @@ export const command: Command = {
 
       // Invalidate ladder cache so next /ladder reflects the new result
       await cacheDel(CacheKeys.ladder());
+
+      // Refresh the #1v1-leaderboard embed (fire-and-forget — never blocks the reply)
+      updateLeaderboardEmbed(interaction.client).catch((e) =>
+        console.error('[/report-win] Leaderboard embed update failed:', e)
+      );
 
       // Clear Redis match state for both players
       await clearActiveMatch(reporterDiscordId);

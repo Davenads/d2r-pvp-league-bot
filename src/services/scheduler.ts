@@ -9,16 +9,22 @@
  *   2. Warning escalation (every 4 hours, offset by 30 minutes)
  *      - Finds players with a forced match assignment older than 24 hours.
  *      - Issues a warning (and auto-removes at threshold).
+ *
+ *   3. Leaderboard embed refresh (every hour)
+ *      - Edits the pinned #1v1-leaderboard embed to reflect current standings.
+ *      - Covers cases where manual sheet edits change rankings between matches.
  */
 
 import type { Client, TextChannel } from 'discord.js';
 import { EmbedBuilder, Colors } from 'discord.js';
 import { prisma } from '../db/client.js';
 import { getForcedMatch, setForcedMatch, clearForcedMatch } from './queue.js';
+import { updateLeaderboardEmbed } from './leaderboardEmbed.js';
 import { CHANNELS } from '../config/channels.js';
 import { config } from '../config.js';
 
-const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
+const FOUR_HOURS_MS  = 4 * 60 * 60 * 1000;
+const ONE_HOUR_MS    = 60 * 60 * 1000;
 const WARNING_DELAY_MS = 24 * 60 * 60 * 1000;  // 24h after forced assignment before warning
 
 // ── Start ─────────────────────────────────────────────────────────────────────
@@ -36,6 +42,11 @@ export function startScheduler(client: Client): void {
   // Run warning escalation offset by 30 minutes, then every 4 hours
   setTimeout(() => runWarningEscalation(client), 32 * 60 * 1000);
   setInterval(() => runWarningEscalation(client), FOUR_HOURS_MS);
+
+  // Refresh the leaderboard embed every hour (covers manual sheet edits between matches)
+  setInterval(() => updateLeaderboardEmbed(client).catch((e) =>
+    console.error('[Scheduler] Leaderboard refresh failed:', e)
+  ), ONE_HOUR_MS);
 
   console.log('[Scheduler] Jobs scheduled.');
 }
