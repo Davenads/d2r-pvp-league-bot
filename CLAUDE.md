@@ -218,7 +218,7 @@ NODE_ENV=development
 
 3. **Build registration uses a fixed autocomplete list, not free text.** This was an explicit design requirement from the brainstorming chat ("choosing from a list of available builds to maintain data integrity"). Free-form build entry breaks matchup automation.
 
-4. **Players may register multiple builds (up to 5).** When two queued players are matched, the bot computes all NxM build pairings and filters out any that are banned. The full list of available (non-banned) matchups is presented to the players via a Discord StringSelectMenu in the private match thread. The players choose which matchup they want to play. The Prisma `Match` record is only created **after** both players confirm the selected matchup. If all pairings are banned, an override prompt is shown. The selection is stored as a `PendingMatchSelection` in Redis (30-minute TTL) identified by a UUID nonce.
+4. **Players may register multiple builds (up to 5).** When two queued players are matched, the bot computes all NxM build pairings and filters out any that are on the banned list. Each valid pairing is then checked against the `Matchups: Deathmatches` tab — if one build lists the other as a deathmatch opponent, that pairing is tagged DEATHMATCH (FT2); otherwise STANDARD (FT4). The bot **randomly selects** one valid pairing with no player input. The Prisma `Match` record is created immediately with the correct type. If all pairings are banned, an override prompt is shown — if override is accepted, the bot randomly picks from all pairings (including banned); if declined, both players are re-queued.
 
 5. **Two result recording modes.** Stadium explicitly requested a way to track test-rule match outcomes separately from regular match outcomes. Both flows look the same to players but are stored/counted differently.
 
@@ -232,9 +232,11 @@ NODE_ENV=development
 
 10. **Banned matchup handling.** Before displaying matchup rules, always check whether the matchup is on the banned list and surface that prominently if so.
 
-11. **Deathmatch alternatives.** Each build has up to 5 deathmatch opponents listed. These are drawn from the `Matchups: Deathmatches` sheet tab.
+11. **Deathmatch is triggered by specific build pairings.** The `Matchups: Deathmatches` tab defines which matchups are inherently deathmatches (e.g., Barb vs Hammerdin). When the bot randomly selects a pairing, it checks this tab — if either build lists the other as a deathmatch opponent, the match is typed DEATHMATCH (FT2). This is not a fallback for banned matchups; it is a designated match type. Each build has up to 5 deathmatch opponents. The tab is cached in Redis and used during matchup detection at match time.
 
-12. **Queue is FIFO and private.** Queue membership is never exposed to other players — only mods can view it via `/admin-view-queue`. This prevents cherry-picking opponents. When a player joins the queue, they are immediately matched with the next player already in queue (if one exists). On match, both players are set to `in_match` state in Redis immediately (preventing re-queue), a private thread is created, and the matchup selection UI is posted. No DB `Match` record exists until the matchup is confirmed.
+12. **Queue is FIFO and private.** Queue membership is never exposed to other players — only mods can view it via `/admin-view-queue`. This prevents cherry-picking opponents. When a player joins the queue, they are immediately matched with the next player already in queue (if one exists). On match, both players are set to `in_match` state in Redis immediately (preventing re-queue), a private thread is created, the bot randomly selects a non-banned pairing (tagged STANDARD or DEATHMATCH), announces it, and creates the Prisma `Match` record immediately.
+
+17. **Leaderboard display is rank + name only.** The `/ladder` command shows everyone in their ranked position with no W/L, points, or win% visible. Stadium's rationale: hiding the score gap between #1 and #2 prevents players from being discouraged and encourages everyone to keep grinding. Points are tracked internally but never displayed publicly.
 
 13. **Forced match cadence.** Players on the ladder are expected to play approximately every 3 days. A scheduler checks for players whose last match (or queue join) exceeds this window and issues a forced match assignment requiring an "I'm ready" acknowledgment.
 
