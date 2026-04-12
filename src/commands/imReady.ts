@@ -4,11 +4,14 @@ import {
   EmbedBuilder,
   Colors,
   TextChannel,
+  ChannelType,
 } from 'discord.js';
+import type { ThreadChannel } from 'discord.js';
 import type { Command } from '../types/index.js';
 import { buildErrorEmbed, EMBED_COLORS } from '../utils/formatters.js';
-import { getForcedMatch, clearForcedMatch, getPlayerState, joinQueue } from '../services/queue.js';
+import { getForcedMatch, clearForcedMatch, getPlayerState, joinQueue, updatePendingMatch } from '../services/queue.js';
 import { CHANNELS } from '../config/channels.js';
+import { postMatchupSelectionEmbed, postAllBannedEmbed } from '../utils/matchupUI.js';
 
 export const command: Command = {
   data: new SlashCommandBuilder()
@@ -84,8 +87,37 @@ export const command: Command = {
         return;
       }
 
-      // Immediate match — same as normal queue flow
-      const { matchId, opponentDiscordId, yourBuild, opponentBuild } = outcome;
+      // Immediate match — create thread and post matchup selection UI
+      const { nonce, opponentDiscordId, availableMatchups, allMatchups, allBanned } = outcome;
+
+      const opponentUser = await interaction.client.users.fetch(opponentDiscordId).catch(() => null);
+      const threadName = `Match: ${interaction.user.username} vs ${opponentUser?.username ?? 'Opponent'}`;
+
+      const threadParent = interaction.client.channels.cache.get(CHANNELS.matchThreads) as TextChannel | undefined;
+      let thread: ThreadChannel | undefined;
+
+      if (threadParent) {
+        try {
+          thread = await threadParent.threads.create({
+            name: threadName,
+            type: ChannelType.PrivateThread,
+            reason: 'D2R 1v1 League forced match — awaiting matchup selection',
+          }) as ThreadChannel;
+
+          await thread.members.add(discordId);
+          await thread.members.add(opponentDiscordId);
+
+          await updatePendingMatch(nonce, { threadId: thread.id });
+
+          if (allBanned) {
+            await postAllBannedEmbed(thread, nonce, discordId, opponentDiscordId);
+          } else {
+            await postMatchupSelectionEmbed(thread, nonce, discordId, opponentDiscordId, availableMatchups);
+          }
+        } catch (threadErr) {
+          console.error('[/im-ready] Failed to create match thread:', threadErr);
+        }
+      }
 
       await interaction.editReply({
         embeds: [
@@ -94,9 +126,7 @@ export const command: Command = {
             .setTitle('Ready — Match Found!')
             .setDescription(
               `You've been matched against <@${opponentDiscordId}>.\n\n` +
-              `**Your build:** ${yourBuild}\n` +
-              `**Opponent's build:** ${opponentBuild}\n\n` +
-              'Check your match thread for the rules.'
+              (thread ? `Head to <#${thread.id}> to choose your matchup.` : 'A match has been set up — awaiting matchup selection.')
             ),
         ],
       });
@@ -108,10 +138,9 @@ export const command: Command = {
             new EmbedBuilder()
               .setColor(Colors.Gold)
               .setTitle('Forced Match Assigned')
-              .addFields(
-                { name: 'Player 1', value: `<@${discordId}> — ${yourBuild}`, inline: true },
-                { name: 'Player 2', value: `<@${opponentDiscordId}> — ${opponentBuild}`, inline: true },
-                { name: 'Match #', value: String(matchId), inline: true },
+              .setDescription(
+                `<@${discordId}> vs <@${opponentDiscordId}> — awaiting matchup selection` +
+                (thread ? `\n\n**Thread:** <#${thread.id}>` : '')
               )
               .setTimestamp(),
           ],

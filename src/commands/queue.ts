@@ -6,12 +6,13 @@ import {
   TextChannel,
   ChannelType,
 } from 'discord.js';
+import type { ThreadChannel } from 'discord.js';
 import type { Command } from '../types/index.js';
 import { buildErrorEmbed, EMBED_COLORS } from '../utils/formatters.js';
 import { prisma } from '../db/client.js';
-import { joinQueue, getPlayerState, setMatchThreadId } from '../services/queue.js';
-import { getMatchupRules } from '../services/matchup.js';
+import { joinQueue, getPlayerState, updatePendingMatch } from '../services/queue.js';
 import { CHANNELS } from '../config/channels.js';
+import { postMatchupSelectionEmbed, postAllBannedEmbed } from '../utils/matchupUI.js';
 
 export const command: Command = {
   data: new SlashCommandBuilder()
@@ -55,7 +56,7 @@ export const command: Command = {
       const currentState = await getPlayerState(discordId);
 
       if (currentState === 'queued') {
-        await interaction.editReply({ embeds: [buildErrorEmbed("You're already in the queue. Use `/im-ready` to acknowledge a match assignment, or wait for an opponent.")] });
+        await interaction.editReply({ embeds: [buildErrorEmbed("You're already in the queue. Wait for an opponent.")] });
         return;
       }
 
@@ -97,62 +98,37 @@ export const command: Command = {
 
       // ── Match found ──────────────────────────────────────────────────────────
 
-      const { matchId, opponentDiscordId, yourBuild, opponentBuild } = outcome;
+      const { nonce, opponentDiscordId, availableMatchups, allMatchups, allBanned } = outcome;
 
-      // Fetch matchup rules for the thread
-      const rules = await getMatchupRules(yourBuild, opponentBuild).catch(() => null);
+      // Fetch opponent user object for thread naming
+      const opponentUser = await interaction.client.users.fetch(opponentDiscordId).catch(() => null);
+      const threadName = `Match: ${interaction.user.username} vs ${opponentUser?.username ?? 'Opponent'}`;
 
       // Create private match thread
       const threadParent = interaction.client.channels.cache.get(CHANNELS.matchThreads) as TextChannel | undefined;
-      let threadId: string | undefined;
+      let thread: ThreadChannel | undefined;
 
       if (threadParent) {
         try {
-          const thread = await threadParent.threads.create({
-            name: `Match #${matchId}`,
+          thread = await threadParent.threads.create({
+            name: threadName,
             type: ChannelType.PrivateThread,
-            reason: `D2R 1v1 League match #${matchId}`,
-          });
-
-          threadId = thread.id;
+            reason: `D2R 1v1 League match — awaiting matchup selection`,
+          }) as ThreadChannel;
 
           // Add both players to the thread
           await thread.members.add(discordId);
           await thread.members.add(opponentDiscordId);
 
-          // Build the match embed
-          const matchEmbed = new EmbedBuilder()
-            .setColor(Colors.Gold)
-            .setTitle(`Match #${matchId} — ${yourBuild} vs ${opponentBuild}`)
-            .setDescription(
-              `<@${discordId}> vs <@${opponentDiscordId}>\n\n` +
-              `**${interaction.user.username}** is playing **${yourBuild}**\n` +
-              `**Opponent** is playing **${opponentBuild}**`
-            )
-            .setFooter({ text: 'Report the result with /report-win once your match is done.' })
-            .setTimestamp();
+          // Save thread ID into pending match in Redis
+          await updatePendingMatch(nonce, { threadId: thread.id });
 
-          const embeds = [matchEmbed];
-
-          // Append matchup rules if available and not banned
-          if (rules && !rules.isBanned) {
-            const rulesEmbed = new EmbedBuilder()
-              .setColor(EMBED_COLORS.rules)
-              .setTitle('Matchup Rules')
-              .addFields(
-                { name: `${yourBuild} Rules`, value: rules.rulesForA || '*No specific restrictions.*', inline: false },
-                { name: `${opponentBuild} Rules`, value: rules.rulesForB || '*No specific restrictions.*', inline: false },
-              );
-            embeds.push(rulesEmbed);
+          // Post the matchup selection UI
+          if (allBanned) {
+            await postAllBannedEmbed(thread, nonce, discordId, opponentDiscordId);
+          } else {
+            await postMatchupSelectionEmbed(thread, nonce, discordId, opponentDiscordId, availableMatchups);
           }
-
-          await thread.send({ content: `<@${discordId}> <@${opponentDiscordId}>`, embeds });
-
-          // Save thread ID to Redis
-          await setMatchThreadId(discordId, threadId);
-
-          // Update Postgres Match with thread ID
-          await prisma.match.update({ where: { id: matchId }, data: { threadId } });
         } catch (threadErr) {
           console.error('[/queue] Failed to create match thread:', threadErr);
         }
@@ -166,14 +142,12 @@ export const command: Command = {
             .setTitle('Match Found!')
             .setDescription(
               `You've been matched against <@${opponentDiscordId}>.\n\n` +
-              `**Your build:** ${yourBuild}\n` +
-              `**Opponent's build:** ${opponentBuild}` +
-              (threadId ? `\n\nHead to <#${threadId}> for the full rules.` : '')
+              (thread ? `Head to <#${thread.id}> to choose your matchup.` : 'A match has been set up — awaiting matchup selection.')
             ),
         ],
       });
 
-      // Post public match assignment to #1v1-queue
+      // Post to #1v1-queue channel
       const queueChannel = interaction.client.channels.cache.get(CHANNELS.queue) as TextChannel | undefined;
       if (queueChannel) {
         await queueChannel.send({
@@ -181,21 +155,17 @@ export const command: Command = {
             new EmbedBuilder()
               .setColor(Colors.Gold)
               .setTitle('Match Assigned')
-              .addFields(
-                { name: 'Player 1', value: `<@${discordId}> — ${yourBuild}`, inline: true },
-                { name: 'Player 2', value: `<@${opponentDiscordId}> — ${opponentBuild}`, inline: true },
-                ...(threadId ? [{ name: 'Thread', value: `<#${threadId}>`, inline: false }] : []),
+              .setDescription(
+                `<@${discordId}> vs <@${opponentDiscordId}> — awaiting matchup selection` +
+                (thread ? `\n\n**Thread:** <#${thread.id}>` : '')
               )
               .setTimestamp(),
           ],
         });
-      }
 
-      // Notify opponent (they were already in queue, so they need a DM or queue channel ping)
-      const queueNotifyChannel = interaction.client.channels.cache.get(CHANNELS.queue) as TextChannel | undefined;
-      if (queueNotifyChannel) {
-        await queueNotifyChannel.send({
-          content: `<@${opponentDiscordId}> — you've been matched! Check ${threadId ? `<#${threadId}>` : 'your match thread'}.`,
+        // Notify the queued opponent
+        await queueChannel.send({
+          content: `<@${opponentDiscordId}> — you've been matched! Check ${thread ? `<#${thread.id}>` : 'your match thread'} to choose a matchup.`,
         });
       }
     } catch (err) {

@@ -1,13 +1,38 @@
-import { Events, EmbedBuilder, Colors, TextChannel, ThreadChannel, ChannelType } from 'discord.js';
-import type { Interaction, ButtonInteraction } from 'discord.js';
+import {
+  Events,
+  EmbedBuilder,
+  Colors,
+  TextChannel,
+  ThreadChannel,
+  ChannelType,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+} from 'discord.js';
+import type { Interaction, ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import type { BotClient } from '../index.js';
 import { buildErrorEmbed, EMBED_COLORS } from '../utils/formatters.js';
 import { prisma } from '../db/client.js';
-import { clearActiveMatch, setPlayerState, getMirrorRequest, deleteMirrorRequest, startMirrorMatch, setMatchThreadId } from '../services/queue.js';
+import {
+  clearActiveMatch,
+  setPlayerState,
+  getMirrorRequest,
+  deleteMirrorRequest,
+  startMirrorMatch,
+  setMatchThreadId,
+  getPendingMatch,
+  updatePendingMatch,
+  clearPendingMatch,
+  setActiveMatch,
+} from '../services/queue.js';
+import { getMatchupRules } from '../services/matchup.js';
 import { updateLadderResult } from '../services/ladder.js';
 import { cacheDel } from '../services/cache.js';
 import { CacheKeys } from '../types/index.js';
+import type { ActiveMatchState } from '../types/index.js';
 import { CHANNELS } from '../config/channels.js';
+import { postMatchupSelectionEmbed, postAllBannedEmbed } from '../utils/matchupUI.js';
+import type { MatchType } from '@prisma/client';
 
 export const name = Events.InteractionCreate;
 export const once = false;
@@ -51,6 +76,18 @@ export async function execute(interaction: Interaction): Promise<void> {
     return;
   }
 
+  // ── String select menus ──────────────────────────────────────────────────
+  if (interaction.isStringSelectMenu()) {
+    const colonIdx = interaction.customId.indexOf(':');
+    const action = colonIdx === -1 ? interaction.customId : interaction.customId.slice(0, colonIdx);
+    const payload = colonIdx === -1 ? '' : interaction.customId.slice(colonIdx + 1);
+
+    if (action === 'matchup_select') {
+      await handleMatchupSelect(interaction, payload);
+      return;
+    }
+  }
+
   // ── Button interactions ───────────────────────────────────────────────────
   if (interaction.isButton()) {
     const colonIdx = interaction.customId.indexOf(':');
@@ -74,6 +111,318 @@ export async function execute(interaction: Interaction): Promise<void> {
       await handleMirrorDecline(interaction, payload);
       return;
     }
+
+    if (action === 'matchup_confirm') {
+      await handleMatchupConfirm(interaction, payload);
+      return;
+    }
+
+    if (action === 'matchup_decline') {
+      await handleMatchupDecline(interaction, payload);
+      return;
+    }
+
+    if (action === 'cancel_match') {
+      await handleCancelMatch(interaction, payload);
+      return;
+    }
+
+    if (action === 'override_banned') {
+      await handleOverrideBanned(interaction, payload);
+      return;
+    }
+  }
+}
+
+// ── Matchup select handler ────────────────────────────────────────────────────
+
+async function handleMatchupSelect(interaction: StringSelectMenuInteraction, nonce: string): Promise<void> {
+  await interaction.deferUpdate();
+
+  try {
+    const pending = await getPendingMatch(nonce);
+    if (!pending) {
+      await interaction.followUp({ embeds: [buildErrorEmbed('This matchup selection has expired or no longer exists.')], ephemeral: true });
+      return;
+    }
+
+    const userId = interaction.user.id;
+    const isP1 = userId === pending.player1DiscordId;
+    const isP2 = userId === pending.player2DiscordId;
+
+    if (!isP1 && !isP2) {
+      await interaction.followUp({ embeds: [buildErrorEmbed("You aren't a participant in this match.")], ephemeral: true });
+      return;
+    }
+
+    // Parse value — always stored as "build1|build2"
+    const [build1, build2] = interaction.values[0].split('|');
+    if (!build1 || !build2) return;
+
+    // Store selection in Redis
+    await updatePendingMatch(nonce, {
+      selectedMatchup: { build1, build2 },
+      selectorDiscordId: userId,
+    });
+
+    const otherPlayerId = isP1 ? pending.player2DiscordId : pending.player1DiscordId;
+
+    // Post confirmation prompt to thread
+    const confirmEmbed = new EmbedBuilder()
+      .setColor(Colors.Gold)
+      .setTitle('Matchup Selected')
+      .setDescription(
+        `<@${userId}> selected **${build1} vs ${build2}**.\n\n` +
+        `<@${otherPlayerId}>, do you agree to this matchup?`
+      )
+      .setFooter({ text: 'The player who selected cannot confirm their own choice.' });
+
+    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`matchup_confirm:${nonce}`)
+        .setLabel('Agree')
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`matchup_decline:${nonce}`)
+        .setLabel('Change Selection')
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(`cancel_match:${nonce}`)
+        .setLabel('Cancel Match')
+        .setStyle(ButtonStyle.Danger),
+    );
+
+    const channel = interaction.channel as TextChannel | ThreadChannel | null;
+    await channel?.send({ embeds: [confirmEmbed], components: [row] });
+  } catch (err) {
+    console.error('[matchup_select]', err);
+  }
+}
+
+// ── Matchup confirm handler ───────────────────────────────────────────────────
+
+async function handleMatchupConfirm(interaction: ButtonInteraction, nonce: string): Promise<void> {
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    const pending = await getPendingMatch(nonce);
+    if (!pending) {
+      await interaction.editReply({ embeds: [buildErrorEmbed('This matchup selection has expired.')] });
+      return;
+    }
+
+    if (!pending.selectedMatchup) {
+      await interaction.editReply({ embeds: [buildErrorEmbed('No matchup has been selected yet.')] });
+      return;
+    }
+
+    const userId = interaction.user.id;
+    const isP1 = userId === pending.player1DiscordId;
+    const isP2 = userId === pending.player2DiscordId;
+
+    if (!isP1 && !isP2) {
+      await interaction.editReply({ embeds: [buildErrorEmbed("You aren't a participant in this match.")] });
+      return;
+    }
+
+    // The selector cannot confirm their own selection
+    if (userId === pending.selectorDiscordId) {
+      await interaction.editReply({ embeds: [buildErrorEmbed("You can't confirm your own matchup selection. Wait for your opponent.")] });
+      return;
+    }
+
+    const { build1, build2 } = pending.selectedMatchup;
+
+    // Create Prisma Match record
+    const match = await prisma.match.create({
+      data: {
+        seasonId: pending.seasonId,
+        player1Id: pending.player1DbId,
+        player2Id: pending.player2DbId,
+        build1Used: build1,
+        build2Used: build2,
+        type: pending.matchType as MatchType,
+        status: 'PENDING',
+        threadId: pending.threadId,
+      },
+    });
+
+    // Set ActiveMatchState in Redis
+    const matchState: ActiveMatchState = {
+      matchId: match.id,
+      player1DiscordId: pending.player1DiscordId,
+      player2DiscordId: pending.player2DiscordId,
+      build1,
+      build2,
+      createdAt: Date.now(),
+      threadId: pending.threadId,
+    };
+    await setActiveMatch(matchState);
+
+    // Clear pending match from Redis
+    await clearPendingMatch(nonce);
+
+    // Post confirmed match embed to thread
+    if (pending.threadId) {
+      try {
+        const thread = interaction.client.channels.cache.get(pending.threadId) as ThreadChannel | undefined;
+        if (thread?.isThread()) {
+          const confirmedEmbed = new EmbedBuilder()
+            .setColor(Colors.Gold)
+            .setTitle(`Match #${match.id} Locked In`)
+            .setDescription(
+              `**${build1}** vs **${build2}**\n\n` +
+              `<@${pending.player1DiscordId}> vs <@${pending.player2DiscordId}>`
+            )
+            .setFooter({ text: 'Report with /report-win when done.' })
+            .setTimestamp();
+
+          const embeds = [confirmedEmbed];
+
+          // Append matchup rules if not banned
+          const rules = await getMatchupRules(build1, build2).catch(() => null);
+          if (rules && !rules.isBanned) {
+            const rulesEmbed = new EmbedBuilder()
+              .setColor(EMBED_COLORS.rules)
+              .setTitle('Matchup Rules')
+              .addFields(
+                { name: `${build1} Rules`, value: rules.rulesForA || '*No specific restrictions.*', inline: false },
+                { name: `${build2} Rules`, value: rules.rulesForB || '*No specific restrictions.*', inline: false },
+              );
+            embeds.push(rulesEmbed);
+          }
+
+          await thread.send({
+            content: `<@${pending.player1DiscordId}> <@${pending.player2DiscordId}>`,
+            embeds,
+          });
+        }
+      } catch (threadErr) {
+        console.warn('[matchup_confirm] Failed to post to thread:', threadErr);
+      }
+    }
+
+    await interaction.editReply({ embeds: [new EmbedBuilder().setColor(Colors.Green).setTitle('Matchup Confirmed!').setDescription(`**${build1} vs ${build2}** is locked in. Good luck!`)] });
+  } catch (err) {
+    console.error('[matchup_confirm]', err);
+    await interaction.editReply({ embeds: [buildErrorEmbed('Failed to confirm matchup. Contact a mod.')] });
+  }
+}
+
+// ── Matchup decline (change) handler ─────────────────────────────────────────
+
+async function handleMatchupDecline(interaction: ButtonInteraction, nonce: string): Promise<void> {
+  await interaction.deferUpdate();
+
+  try {
+    const pending = await getPendingMatch(nonce);
+    if (!pending) return;
+
+    const userId = interaction.user.id;
+    const isP1 = userId === pending.player1DiscordId;
+    const isP2 = userId === pending.player2DiscordId;
+    if (!isP1 && !isP2) return;
+
+    // Clear selected matchup, go back to selection
+    await updatePendingMatch(nonce, { selectedMatchup: undefined, selectorDiscordId: undefined });
+
+    const thread = interaction.channel as ThreadChannel | null;
+    if (thread) {
+      if (pending.allBanned) {
+        await postAllBannedEmbed(thread, nonce, pending.player1DiscordId, pending.player2DiscordId);
+      } else {
+        await postMatchupSelectionEmbed(thread, nonce, pending.player1DiscordId, pending.player2DiscordId, pending.availableMatchups);
+      }
+    }
+  } catch (err) {
+    console.error('[matchup_decline]', err);
+  }
+}
+
+// ── Cancel match handler ──────────────────────────────────────────────────────
+
+async function handleCancelMatch(interaction: ButtonInteraction, nonce: string): Promise<void> {
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    const pending = await getPendingMatch(nonce);
+    if (!pending) {
+      await interaction.editReply({ embeds: [buildErrorEmbed('Match not found or already resolved.')] });
+      return;
+    }
+
+    const userId = interaction.user.id;
+    const isP1 = userId === pending.player1DiscordId;
+    const isP2 = userId === pending.player2DiscordId;
+    if (!isP1 && !isP2) {
+      await interaction.editReply({ embeds: [buildErrorEmbed("You aren't a participant in this match.")] });
+      return;
+    }
+
+    // Return both players to idle
+    await Promise.all([
+      setPlayerState(pending.player1DiscordId, 'idle'),
+      setPlayerState(pending.player2DiscordId, 'idle'),
+    ]);
+    await clearPendingMatch(nonce);
+
+    // Post cancellation notice to thread
+    if (pending.threadId) {
+      try {
+        const thread = interaction.client.channels.cache.get(pending.threadId) as ThreadChannel | undefined;
+        if (thread?.isThread()) {
+          await thread.send({
+            embeds: [
+              new EmbedBuilder()
+                .setColor(EMBED_COLORS.warning)
+                .setTitle('Match Cancelled')
+                .setDescription(`<@${userId}> cancelled the match. Both players have been returned to idle.`)
+                .setTimestamp(),
+            ],
+          });
+          // Archive thread
+          await thread.setArchived(true, 'Match cancelled before selection').catch(() => null);
+        }
+      } catch (threadErr) {
+        console.warn('[cancel_match] Failed to post/archive thread:', threadErr);
+      }
+    }
+
+    await interaction.editReply({ embeds: [new EmbedBuilder().setColor(EMBED_COLORS.warning).setTitle('Match Cancelled').setDescription('You have been returned to idle.')] });
+  } catch (err) {
+    console.error('[cancel_match]', err);
+    await interaction.editReply({ embeds: [buildErrorEmbed('Failed to cancel match. Contact a mod.')] });
+  }
+}
+
+// ── Override banned handler ───────────────────────────────────────────────────
+
+async function handleOverrideBanned(interaction: ButtonInteraction, nonce: string): Promise<void> {
+  await interaction.deferUpdate();
+
+  try {
+    const pending = await getPendingMatch(nonce);
+    if (!pending) return;
+
+    const userId = interaction.user.id;
+    const isP1 = userId === pending.player1DiscordId;
+    const isP2 = userId === pending.player2DiscordId;
+    if (!isP1 && !isP2) return;
+
+    // Show all matchups (including banned, prefixed with ⚠️ BANNED)
+    const thread = interaction.channel as ThreadChannel | null;
+    if (thread) {
+      await postMatchupSelectionEmbed(
+        thread,
+        nonce,
+        pending.player1DiscordId,
+        pending.player2DiscordId,
+        pending.allMatchups,
+        true,  // isBanned = true → prefix labels
+      );
+    }
+  } catch (err) {
+    console.error('[override_banned]', err);
   }
 }
 

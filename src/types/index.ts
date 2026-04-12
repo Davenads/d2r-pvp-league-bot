@@ -79,6 +79,8 @@ export const CacheKeys = {
   mirrorRequest: (nonce: string) => `d2r:mirror:req:${nonce}`,
   // Forced match assignment (set by scheduler, cleared by /im-ready)
   forcedMatch: (discordId: string) => `d2r:forced:${discordId}`,
+  // Pending matchup selection (stored until both players confirm a build pairing)
+  pendingMatch: (nonce: string) => `d2r:pending:${nonce}`,
 } as const;
 
 // ── Mirror request type ───────────────────────────────────────────────────────
@@ -101,4 +103,44 @@ export interface ActiveMatchState {
   build2: string;              // player2's build for this match
   threadId?: string;           // filled in after thread creation
   createdAt: number;           // unix ms
+}
+
+/** A build pairing candidate for matchup selection */
+export interface BuildPairing {
+  build1: string;
+  build2: string;
+}
+
+/**
+ * Returned by joinQueue / admin-forcematch when two players are matched.
+ * No Prisma record is created yet — awaiting matchup selection confirmation.
+ */
+export interface MatchFound {
+  matched: true;
+  nonce: string;
+  opponentDiscordId: string;
+  availableMatchups: BuildPairing[];  // non-banned pairings
+  allMatchups: BuildPairing[];        // all NxM combinations
+  allBanned: boolean;                 // true if all pairings are banned
+}
+
+/**
+ * Transient state stored in Redis while two players are choosing a matchup.
+ * Cleared once the matchup is confirmed (Prisma record created) or cancelled.
+ */
+export interface PendingMatchSelection {
+  nonce: string;
+  seasonId: number;
+  player1DiscordId: string;
+  player2DiscordId: string;
+  player1DbId: number;
+  player2DbId: number;
+  availableMatchups: BuildPairing[];
+  allMatchups: BuildPairing[];
+  allBanned: boolean;
+  threadId?: string;
+  matchType: 'STANDARD' | 'TOURNAMENT';
+  createdAt: number;
+  selectedMatchup?: BuildPairing;
+  selectorDiscordId?: string;
 }

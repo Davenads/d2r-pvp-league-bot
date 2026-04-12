@@ -28,3 +28,4 @@ plan/
 # Logs
 *.log
 npm-debug.log*
+tmp_gkey.txt

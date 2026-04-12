@@ -2,10 +2,10 @@
  * /admin-forcematch
  *
  * Mod-only command to create a tournament match between two registered players.
- * - Selects builds via the standard least-disadvantaged algorithm
- * - Creates a Postgres Match record with type TOURNAMENT
- * - Sets Redis state for both players (in_match)
- * - Creates a private match thread with matchup info
+ * - Computes all allowed build pairings via getAllowedMatchups
+ * - Stores a PendingMatchSelection in Redis with matchType TOURNAMENT
+ * - Creates a private match thread and posts the matchup selection UI
+ * - No Prisma Match record is created until both players confirm the matchup
  * - Points on result: winner +3, loser +1 (handled by updateLadderResult)
  */
 
@@ -18,15 +18,21 @@ import {
   ChannelType,
   PermissionFlagsBits,
 } from 'discord.js';
-import type { Command } from '../../types/index.js';
+import type { ThreadChannel } from 'discord.js';
+import { randomUUID } from 'crypto';
+import type { Command, PendingMatchSelection } from '../../types/index.js';
 import { buildErrorEmbed, EMBED_COLORS } from '../../utils/formatters.js';
 import { prisma } from '../../db/client.js';
-import { selectBuilds, setActiveMatch, setPlayerState, setMatchThreadId, getPlayerState } from '../../services/queue.js';
-import { getMatchupRules } from '../../services/matchup.js';
-import { updateLadderResult } from '../../services/ladder.js';
+import {
+  getAllowedMatchups,
+  storePendingMatch,
+  updatePendingMatch,
+  setPlayerState,
+  getPlayerState,
+} from '../../services/queue.js';
 import { CHANNELS } from '../../config/channels.js';
 import { assertModRole } from '../../utils/modGuard.js';
-import type { ActiveMatchState } from '../../types/index.js';
+import { postMatchupSelectionEmbed, postAllBannedEmbed } from '../../utils/matchupUI.js';
 
 export const command: Command = {
   data: new SlashCommandBuilder()
@@ -87,96 +93,59 @@ export const command: Command = {
         getPlayerState(p2User.id),
       ]);
       const stateWarning =
-        p1State === 'in_match' ? `⚠️ **${p1User.username}** is currently marked as in_match.\n` : '' +
-        p2State === 'in_match' ? `⚠️ **${p2User.username}** is currently marked as in_match.\n` : '';
+        (p1State === 'in_match' ? `⚠️ **${p1User.username}** is currently marked as in_match.\n` : '') +
+        (p2State === 'in_match' ? `⚠️ **${p2User.username}** is currently marked as in_match.\n` : '');
 
-      // Select builds
-      const { build1, build2 } = await selectBuilds(p1Record, p2Record);
+      // Compute all allowed matchup combinations
+      const { available, all, allBanned } = await getAllowedMatchups(p1Record, p2Record);
 
-      // Create Postgres Match record
-      const match = await prisma.match.create({
-        data: {
-          seasonId: season.id,
-          player1Id: p1Record.id,
-          player2Id: p2Record.id,
-          build1Used: build1,
-          build2Used: build2,
-          type: 'TOURNAMENT',
-          status: 'PENDING',
-        },
-      });
-
-      // Set Redis state for both players
-      const matchState: ActiveMatchState = {
-        matchId: match.id,
+      // Generate nonce and store pending match
+      const nonce = randomUUID();
+      const pending: PendingMatchSelection = {
+        nonce,
+        seasonId: season.id,
         player1DiscordId: p1User.id,
         player2DiscordId: p2User.id,
-        build1,
-        build2,
+        player1DbId: p1Record.id,
+        player2DbId: p2Record.id,
+        availableMatchups: available,
+        allMatchups: all,
+        allBanned,
+        matchType: 'TOURNAMENT',
         createdAt: Date.now(),
       };
+      await storePendingMatch(pending);
 
+      // Set both players to in_match
       await Promise.all([
-        setActiveMatch(matchState),
         setPlayerState(p1User.id, 'in_match'),
         setPlayerState(p2User.id, 'in_match'),
       ]);
 
-      // Fetch matchup rules
-      const rules = await getMatchupRules(build1, build2).catch(() => null);
-
       // Create private match thread
       const threadParent = interaction.client.channels.cache.get(CHANNELS.matchThreads) as TextChannel | undefined;
-      let threadId: string | undefined;
+      let thread: ThreadChannel | undefined;
 
       if (threadParent) {
         try {
-          const thread = await threadParent.threads.create({
-            name: `Tournament Match #${match.id}`,
+          thread = await threadParent.threads.create({
+            name: `Tournament: ${p1User.username} vs ${p2User.username}`,
             type: ChannelType.PrivateThread,
-            reason: `D2R 1v1 League tournament match #${match.id}`,
-          });
+            reason: `D2R 1v1 League tournament match — awaiting matchup selection`,
+          }) as ThreadChannel;
 
-          threadId = thread.id;
           await thread.members.add(p1User.id);
           await thread.members.add(p2User.id);
 
-          const matchEmbed = new EmbedBuilder()
-            .setColor(Colors.Gold)
-            .setTitle(`🏆 Tournament Match #${match.id} — ${build1} vs ${build2}`)
-            .setDescription(
-              `<@${p1User.id}> vs <@${p2User.id}>\n\n` +
-              `**${p1User.username}** is playing **${build1}**\n` +
-              `**${p2User.username}** is playing **${build2}**\n\n` +
-              `**Match type:** Tournament\n` +
-              `**Points:** Winner **+3** | Loser **+1**`
-            )
-            .setFooter({ text: 'FT4 format. Report the result with /report-win once done.' })
-            .setTimestamp();
+          // Save thread ID into pending match
+          await updatePendingMatch(nonce, { threadId: thread.id });
 
-          const embeds = [matchEmbed];
-
-          if (rules && !rules.isBanned) {
-            const rulesEmbed = new EmbedBuilder()
-              .setColor(EMBED_COLORS.rules)
-              .setTitle('Matchup Rules')
-              .addFields(
-                { name: `${build1} Rules`, value: rules.rulesForA || '*No specific restrictions.*', inline: false },
-                { name: `${build2} Rules`, value: rules.rulesForB || '*No specific restrictions.*', inline: false },
-              );
-            embeds.push(rulesEmbed);
-          } else if (rules?.isBanned) {
-            const bannedEmbed = new EmbedBuilder()
-              .setColor(Colors.Red)
-              .setTitle('⚠️ Banned Matchup')
-              .setDescription(`**${build1}** vs **${build2}** is normally a banned matchup. Confirm with a mod before proceeding.`);
-            embeds.push(bannedEmbed);
+          // Post matchup selection UI
+          if (allBanned) {
+            await postAllBannedEmbed(thread, nonce, p1User.id, p2User.id);
+          } else {
+            await postMatchupSelectionEmbed(thread, nonce, p1User.id, p2User.id, available);
           }
-
-          await thread.send({ content: `<@${p1User.id}> <@${p2User.id}>`, embeds });
-
-          await setMatchThreadId(p1User.id, threadId);
-          await prisma.match.update({ where: { id: match.id }, data: { threadId } });
         } catch (threadErr) {
           console.error('[/admin-forcematch] Failed to create match thread:', threadErr);
         }
@@ -189,12 +158,11 @@ export const command: Command = {
           embeds: [
             new EmbedBuilder()
               .setColor(Colors.Gold)
-              .setTitle('🏆 Tournament Match Assigned')
-              .addFields(
-                { name: 'Player 1', value: `<@${p1User.id}> — ${build1}`, inline: true },
-                { name: 'Player 2', value: `<@${p2User.id}> — ${build2}`, inline: true },
-                { name: 'Points', value: 'Winner **+3** | Loser **+1**', inline: true },
-                ...(threadId ? [{ name: 'Thread', value: `<#${threadId}>`, inline: false }] : []),
+              .setTitle('Tournament Match Assigned')
+              .setDescription(
+                `<@${p1User.id}> vs <@${p2User.id}> — awaiting matchup selection\n` +
+                `**Points:** Winner **+3** | Loser **+1**` +
+                (thread ? `\n\n**Thread:** <#${thread.id}>` : '')
               )
               .setTimestamp(),
           ],
@@ -210,11 +178,11 @@ export const command: Command = {
               .setColor(EMBED_COLORS.warning)
               .setTitle('Admin: Tournament Match Created')
               .addFields(
-                { name: 'Match #', value: String(match.id), inline: true },
                 { name: 'Created By', value: `<@${interaction.user.id}>`, inline: true },
-                { name: 'Player 1', value: `<@${p1User.id}> (${build1})`, inline: true },
-                { name: 'Player 2', value: `<@${p2User.id}> (${build2})`, inline: true },
-                ...(threadId ? [{ name: 'Thread', value: `<#${threadId}>`, inline: false }] : []),
+                { name: 'Player 1', value: `<@${p1User.id}>`, inline: true },
+                { name: 'Player 2', value: `<@${p2User.id}>`, inline: true },
+                { name: 'Nonce', value: nonce, inline: false },
+                ...(thread ? [{ name: 'Thread', value: `<#${thread.id}>`, inline: false }] : []),
               )
               .setTimestamp(),
           ],
@@ -229,10 +197,9 @@ export const command: Command = {
             .setTitle('Tournament Match Created')
             .setDescription(
               (stateWarning ? stateWarning + '\n' : '') +
-              `**Match #${match.id}** created between <@${p1User.id}> and <@${p2User.id}>.\n\n` +
-              `**${p1User.username}:** ${build1}\n` +
-              `**${p2User.username}:** ${build2}\n` +
-              (threadId ? `\n**Thread:** <#${threadId}>` : '')
+              `Tournament match created between <@${p1User.id}> and <@${p2User.id}>.\n\n` +
+              `Awaiting matchup selection in thread.` +
+              (thread ? `\n\n**Thread:** <#${thread.id}>` : '')
             )
             .setFooter({ text: 'Winner +3 pts | Loser +1 pt — applied on result confirm.' })
             .setTimestamp(),

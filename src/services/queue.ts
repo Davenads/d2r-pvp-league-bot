@@ -7,10 +7,19 @@
  * Farming key: d2r:farming:{sortedPair}        Counter with TTL
  */
 
+import { randomUUID } from 'crypto';
 import { prisma } from '../db/client.js';
 import { getRedisClient } from './cache.js';
 import { isMatchupBanned } from './matchup.js';
-import { CacheKeys, type PlayerQueueState, type ActiveMatchState, type MirrorRequest } from '../types/index.js';
+import {
+  CacheKeys,
+  type PlayerQueueState,
+  type ActiveMatchState,
+  type MirrorRequest,
+  type BuildPairing,
+  type MatchFound,
+  type PendingMatchSelection,
+} from '../types/index.js';
 import { config } from '../config.js';
 
 // ── Player state ──────────────────────────────────────────────────────────────
@@ -126,15 +135,85 @@ export interface JoinQueueResult {
   position: number;
 }
 
-export interface MatchResult {
-  matched: true;
-  matchId: number;
-  opponentDiscordId: string;
-  yourBuild: string;
-  opponentBuild: string;
+export type QueueJoinOutcome = JoinQueueResult | MatchFound;
+
+// ── Pending match selection (Redis) ──────────────────────────────────────────
+
+const PENDING_MATCH_TTL = 1800; // 30 minutes
+
+export async function storePendingMatch(selection: PendingMatchSelection): Promise<void> {
+  const redis = getRedisClient();
+  await redis.set(
+    CacheKeys.pendingMatch(selection.nonce),
+    JSON.stringify(selection),
+    'EX',
+    PENDING_MATCH_TTL,
+  );
 }
 
-export type QueueJoinOutcome = JoinQueueResult | MatchResult;
+export async function getPendingMatch(nonce: string): Promise<PendingMatchSelection | null> {
+  const redis = getRedisClient();
+  const raw = await redis.get(CacheKeys.pendingMatch(nonce));
+  if (!raw) return null;
+  return JSON.parse(raw) as PendingMatchSelection;
+}
+
+export async function updatePendingMatch(
+  nonce: string,
+  updates: Partial<PendingMatchSelection>,
+): Promise<PendingMatchSelection | null> {
+  const existing = await getPendingMatch(nonce);
+  if (!existing) return null;
+  const updated: PendingMatchSelection = { ...existing, ...updates };
+  const redis = getRedisClient();
+  await redis.set(
+    CacheKeys.pendingMatch(nonce),
+    JSON.stringify(updated),
+    'EX',
+    PENDING_MATCH_TTL,
+  );
+  return updated;
+}
+
+export async function clearPendingMatch(nonce: string): Promise<void> {
+  const redis = getRedisClient();
+  await redis.del(CacheKeys.pendingMatch(nonce));
+}
+
+// ── Build combination helpers ─────────────────────────────────────────────────
+
+type PlayerBuildsArg = {
+  build1: string;
+  build2: string;
+  build3: string | null;
+  build4: string | null;
+  build5: string | null;
+};
+
+/**
+ * Returns all NxM build pairings between two players, split into
+ * available (non-banned) and all (every combination).
+ */
+export async function getAllowedMatchups(
+  p1: PlayerBuildsArg,
+  p2: PlayerBuildsArg,
+): Promise<{ available: BuildPairing[]; all: BuildPairing[]; allBanned: boolean }> {
+  const p1Builds = getPlayerBuilds(p1);
+  const p2Builds = getPlayerBuilds(p2);
+  const all: BuildPairing[] = [];
+  const available: BuildPairing[] = [];
+
+  for (const b1 of p1Builds) {
+    for (const b2 of p2Builds) {
+      const pairing: BuildPairing = { build1: b1, build2: b2 };
+      all.push(pairing);
+      const banned = await isMatchupBanned(b1, b2);
+      if (!banned) available.push(pairing);
+    }
+  }
+
+  return { available, all, allBanned: available.length === 0 };
+}
 
 /**
  * Attempt to join the queue.
@@ -143,8 +222,8 @@ export type QueueJoinOutcome = JoinQueueResult | MatchResult;
  * Checks farming cap before matching — if capped, the joining player
  * is placed in queue instead.
  *
- * Returns either a "queued" result with position, or a "matched" result
- * with full match details for the command to use when creating the thread.
+ * Returns either a "queued" result with position, or a MatchFound result.
+ * No Prisma Match record is created here — that happens after matchup confirmation.
  */
 export async function joinQueue(joinerDiscordId: string): Promise<QueueJoinOutcome> {
   const redis = getRedisClient();
@@ -180,34 +259,30 @@ export async function joinQueue(joinerDiscordId: string): Promise<QueueJoinOutco
       break;
     }
 
-    // Select builds for the match
-    const { build1, build2 } = await selectBuilds(joinerPlayer, opponentPlayer);
+    // Compute all allowed matchup combinations
+    const { available, all, allBanned } = await getAllowedMatchups(joinerPlayer, opponentPlayer);
 
-    // Create Postgres Match record
-    const match = await prisma.match.create({
-      data: {
-        seasonId: season.id,
-        player1Id: joinerPlayer.id,
-        player2Id: opponentPlayer.id,
-        build1Used: build1,
-        build2Used: build2,
-        type: 'STANDARD',
-        status: 'PENDING',
-      },
-    });
+    // Generate nonce for this pending match session
+    const nonce = randomUUID();
 
-    // Set Redis state for both players
-    const matchState: ActiveMatchState = {
-      matchId: match.id,
+    // Store pending match in Redis
+    const pending: PendingMatchSelection = {
+      nonce,
+      seasonId: season.id,
       player1DiscordId: joinerDiscordId,
       player2DiscordId: candidateId,
-      build1,
-      build2,
+      player1DbId: joinerPlayer.id,
+      player2DbId: opponentPlayer.id,
+      availableMatchups: available,
+      allMatchups: all,
+      allBanned,
+      matchType: 'STANDARD',
       createdAt: Date.now(),
     };
+    await storePendingMatch(pending);
 
+    // Set both players to in_match and record pairing
     await Promise.all([
-      setActiveMatch(matchState),
       setPlayerState(joinerDiscordId, 'in_match'),
       setPlayerState(candidateId, 'in_match'),
       recordPairing(joinerDiscordId, candidateId),
@@ -215,10 +290,11 @@ export async function joinQueue(joinerDiscordId: string): Promise<QueueJoinOutco
 
     return {
       matched: true,
-      matchId: match.id,
+      nonce,
       opponentDiscordId: candidateId,
-      yourBuild: build1,
-      opponentBuild: build2,
+      availableMatchups: available,
+      allMatchups: all,
+      allBanned,
     };
   }
 
