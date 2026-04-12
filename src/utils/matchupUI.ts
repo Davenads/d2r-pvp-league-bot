@@ -1,13 +1,11 @@
 /**
- * Shared helpers for posting matchup selection UI into match threads.
- * Used by /queue and /admin-forcematch (and their interactionCreate handlers).
+ * Shared helpers for posting match UI embeds into match threads.
+ * Used by /queue, /admin-forcematch, and their interactionCreate handlers.
  */
 
 import {
   EmbedBuilder,
   ActionRowBuilder,
-  StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder,
   ButtonBuilder,
   ButtonStyle,
   Colors,
@@ -17,93 +15,95 @@ import type { BuildPairing } from '../types/index.js';
 import { EMBED_COLORS } from './formatters.js';
 
 /**
- * Post the matchup selection embed + select menu into a thread.
+ * Post the "all matchups are banned" embed into a thread.
+ * Offers two buttons:
+ *   - "Override (Bot picks randomly)" — customId: override_banned:{p1Id}:{p2Id}:{matchType}
+ *   - "Re-queue both"                — customId: cancel_match:{p1Id}:{p2Id}
  *
- * @param thread       The private match thread to post into
- * @param nonce        Match nonce (used in component customIds)
- * @param player1Id    Discord ID of player 1
- * @param player2Id    Discord ID of player 2
- * @param matchups     Build pairings to offer as options
- * @param isBanned     When true, prefix each option label with "⚠️ BANNED — "
- */
-export async function postMatchupSelectionEmbed(
-  thread: ThreadChannel,
-  nonce: string,
-  player1Id: string,
-  player2Id: string,
-  matchups: BuildPairing[],
-  isBanned = false,
-): Promise<void> {
-  const embed = new EmbedBuilder()
-    .setColor(Colors.Gold)
-    .setTitle('Choose Your Matchup')
-    .setDescription(
-      `<@${player1Id}> vs <@${player2Id}>\n\n` +
-      'Select the build pairing for this match. Either player can choose.',
-    )
-    .setFooter({ text: 'Either player can select. The other player must then confirm.' });
-
-  const options = matchups.map((p) => {
-    const label = isBanned ? `⚠️ BANNED — ${p.build1} vs ${p.build2}` : `${p.build1} vs ${p.build2}`;
-    return new StringSelectMenuOptionBuilder()
-      .setLabel(label.slice(0, 100))  // Discord label max = 100 chars
-      .setValue(`${p.build1}|${p.build2}`);
-  });
-
-  const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-    new StringSelectMenuBuilder()
-      .setCustomId(`matchup_select:${nonce}`)
-      .setPlaceholder('Select a build matchup...')
-      .addOptions(options),
-  );
-
-  const cancelRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`cancel_match:${nonce}`)
-      .setLabel('Cancel Match')
-      .setStyle(ButtonStyle.Danger),
-  );
-
-  await thread.send({
-    content: `<@${player1Id}> <@${player2Id}>`,
-    embeds: [embed],
-    components: [selectRow, cancelRow],
-  });
-}
-
-/**
- * Post the "all matchups are banned" embed into a thread with Cancel / Play Anyway buttons.
+ * @param thread     The private match thread
+ * @param p1Id       Discord ID of player 1
+ * @param p2Id       Discord ID of player 2
+ * @param matchType  'STANDARD' | 'TOURNAMENT' — passed through to override handler
  */
 export async function postAllBannedEmbed(
   thread: ThreadChannel,
-  nonce: string,
-  player1Id: string,
-  player2Id: string,
+  p1Id: string,
+  p2Id: string,
+  matchType: 'STANDARD' | 'TOURNAMENT' = 'STANDARD',
 ): Promise<void> {
   const embed = new EmbedBuilder()
     .setColor(EMBED_COLORS.banned)
     .setTitle('All Matchups Banned')
     .setDescription(
-      `<@${player1Id}> vs <@${player2Id}>\n\n` +
+      `<@${p1Id}> vs <@${p2Id}>\n\n` +
       'Every possible build pairing between these two players is on the banned matchup list.\n\n' +
-      'Use **Play Anyway** to override and pick a banned matchup, or **Cancel Match** to abort.',
+      '**Override** — the bot will randomly pick from all pairings (including banned).\n' +
+      '**Re-queue both** — both players return to the queue.',
     )
     .setFooter({ text: 'Contact a mod if you believe this is an error.' });
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(`cancel_match:${nonce}`)
-      .setLabel('Cancel Match')
-      .setStyle(ButtonStyle.Danger),
-    new ButtonBuilder()
-      .setCustomId(`override_banned:${nonce}`)
-      .setLabel('Play Anyway (Override)')
+      .setCustomId(`override_banned:${p1Id}:${p2Id}:${matchType}`)
+      .setLabel('Override (Bot picks randomly)')
       .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`cancel_match:${p1Id}:${p2Id}`)
+      .setLabel('Re-queue both')
+      .setStyle(ButtonStyle.Danger),
   );
 
   await thread.send({
-    content: `<@${player1Id}> <@${player2Id}>`,
+    content: `<@${p1Id}> <@${p2Id}>`,
     embeds: [embed],
     components: [row],
+  });
+}
+
+/**
+ * Post the match announcement embed after the bot has randomly selected a pairing.
+ * No buttons — the match record already exists.
+ *
+ * @param thread     The private match thread
+ * @param matchup    The randomly selected BuildPairing
+ * @param p1Id       Discord ID of player 1
+ * @param p2Id       Discord ID of player 2
+ * @param matchId    Prisma Match.id
+ * @param isTournament  When true, adds a tournament note to the description
+ */
+export async function postMatchAnnouncementEmbed(
+  thread: ThreadChannel,
+  matchup: BuildPairing,
+  p1Id: string,
+  p2Id: string,
+  matchId: number,
+  isTournament = false,
+): Promise<void> {
+  const matchTypeLine = matchup.type === 'DEATHMATCH'
+    ? 'Match type: **Deathmatch (FT2)**'
+    : 'Match type: **Standard (FT4)**';
+
+  const tournamentNote = isTournament
+    ? '\n\nThis is a **tournament match** — Winner **+3 pts** | Loser **+1 pt**.'
+    : '';
+
+  const embed = new EmbedBuilder()
+    .setColor(Colors.Gold)
+    .setTitle(`Match #${matchId} Assigned`)
+    .setDescription(
+      `The bot has randomly selected your matchup. Both players must play these builds.\n\n` +
+      tournamentNote,
+    )
+    .addFields(
+      { name: `<@${p1Id}> plays`, value: matchup.build1, inline: true },
+      { name: `<@${p2Id}> plays`, value: matchup.build2, inline: true },
+      { name: 'Rules', value: matchTypeLine, inline: false },
+    )
+    .setFooter({ text: 'Report the result with /report-win when done.' })
+    .setTimestamp();
+
+  await thread.send({
+    content: `<@${p1Id}> <@${p2Id}>`,
+    embeds: [embed],
   });
 }

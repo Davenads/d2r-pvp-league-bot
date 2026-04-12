@@ -64,6 +64,7 @@ export const CacheKeys = {
   },
   banned: () => 'd2r:banned',
   deathmatch: (build: string) => `d2r:deathmatch:${build}`,
+  deathmatches: () => 'd2r:deathmatches',
   rulesGeneral: () => 'd2r:rules:general',
   rulesTest: () => 'd2r:rules:test',
   faq: () => 'd2r:faq',
@@ -79,8 +80,6 @@ export const CacheKeys = {
   mirrorRequest: (nonce: string) => `d2r:mirror:req:${nonce}`,
   // Forced match assignment (set by scheduler, cleared by /im-ready)
   forcedMatch: (discordId: string) => `d2r:forced:${discordId}`,
-  // Pending matchup selection (stored until both players confirm a build pairing)
-  pendingMatch: (nonce: string) => `d2r:pending:${nonce}`,
 } as const;
 
 // ── Mirror request type ───────────────────────────────────────────────────────
@@ -105,42 +104,22 @@ export interface ActiveMatchState {
   createdAt: number;           // unix ms
 }
 
-/** A build pairing candidate for matchup selection */
+/** A build pairing candidate — includes match type for deathmatch detection */
 export interface BuildPairing {
   build1: string;
   build2: string;
+  type?: 'STANDARD' | 'DEATHMATCH';
 }
 
 /**
  * Returned by joinQueue / admin-forcematch when two players are matched.
- * No Prisma record is created yet — awaiting matchup selection confirmation.
+ * Prisma Match record is created immediately on match; no pending selection needed.
  */
 export interface MatchFound {
   matched: true;
-  nonce: string;
   opponentDiscordId: string;
-  availableMatchups: BuildPairing[];  // non-banned pairings
-  allMatchups: BuildPairing[];        // all NxM combinations
-  allBanned: boolean;                 // true if all pairings are banned
-}
-
-/**
- * Transient state stored in Redis while two players are choosing a matchup.
- * Cleared once the matchup is confirmed (Prisma record created) or cancelled.
- */
-export interface PendingMatchSelection {
-  nonce: string;
-  seasonId: number;
-  player1DiscordId: string;
-  player2DiscordId: string;
-  player1DbId: number;
-  player2DbId: number;
-  availableMatchups: BuildPairing[];
-  allMatchups: BuildPairing[];
-  allBanned: boolean;
-  threadId?: string;
-  matchType: 'STANDARD' | 'TOURNAMENT';
-  createdAt: number;
-  selectedMatchup?: BuildPairing;
-  selectorDiscordId?: string;
+  matchId: number;                                        // Prisma Match.id (created immediately)
+  selectedMatchup: { build1: string; build2: string };   // randomly chosen pairing
+  matchType: 'STANDARD' | 'DEATHMATCH';                  // pairing type
+  allBanned: boolean;                                     // true if override flow was triggered
 }

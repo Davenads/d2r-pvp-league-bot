@@ -59,12 +59,7 @@ export function buildMatchupEmbed(rules: MatchupRules): EmbedBuilder {
 
 export function buildLadderEmbed(entries: LadderEntry[], page: number, totalPages: number): EmbedBuilder {
   const rows = entries
-    .map((e) => {
-      const pct = (e.winPct * 100).toFixed(1);
-      const emoji = getClassEmoji(e.build1);
-      const buildDisplay = emoji ? `${emoji} ${e.build1}` : e.build1;
-      return `**${e.rank}.** ${e.discordUsername} (${buildDisplay}) — ${e.wins}W / ${e.losses}L (${pct}%) — ${e.points}pts`;
-    })
+    .map((e) => `**#${e.rank}** ${e.discordUsername}`)
     .join('\n');
 
   return new EmbedBuilder()

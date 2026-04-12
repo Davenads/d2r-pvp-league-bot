@@ -10,9 +10,9 @@ import type { ThreadChannel } from 'discord.js';
 import type { Command } from '../types/index.js';
 import { buildErrorEmbed, EMBED_COLORS } from '../utils/formatters.js';
 import { prisma } from '../db/client.js';
-import { joinQueue, getPlayerState, updatePendingMatch } from '../services/queue.js';
+import { joinQueue, getPlayerState, setMatchThreadId } from '../services/queue.js';
 import { CHANNELS } from '../config/channels.js';
-import { postMatchupSelectionEmbed, postAllBannedEmbed } from '../utils/matchupUI.js';
+import { postAllBannedEmbed, postMatchAnnouncementEmbed } from '../utils/matchupUI.js';
 
 export const command: Command = {
   data: new SlashCommandBuilder()
@@ -98,7 +98,7 @@ export const command: Command = {
 
       // ── Match found ──────────────────────────────────────────────────────────
 
-      const { nonce, opponentDiscordId, availableMatchups, allMatchups, allBanned } = outcome;
+      const { opponentDiscordId, matchId, selectedMatchup, matchType, allBanned } = outcome;
 
       // Fetch opponent user object for thread naming
       const opponentUser = await interaction.client.users.fetch(opponentDiscordId).catch(() => null);
@@ -113,21 +113,30 @@ export const command: Command = {
           thread = await threadParent.threads.create({
             name: threadName,
             type: ChannelType.PrivateThread,
-            reason: `D2R 1v1 League match — awaiting matchup selection`,
+            reason: `D2R 1v1 League match #${matchId}`,
           }) as ThreadChannel;
 
           // Add both players to the thread
           await thread.members.add(discordId);
           await thread.members.add(opponentDiscordId);
 
-          // Save thread ID into pending match in Redis
-          await updatePendingMatch(nonce, { threadId: thread.id });
+          // Update match thread ID in Redis and Postgres
+          if (matchId > 0) {
+            await setMatchThreadId(discordId, thread.id);
+            await prisma.match.update({ where: { id: matchId }, data: { threadId: thread.id } });
+          }
 
-          // Post the matchup selection UI
+          // Post appropriate embed
           if (allBanned) {
-            await postAllBannedEmbed(thread, nonce, discordId, opponentDiscordId);
+            await postAllBannedEmbed(thread, discordId, opponentDiscordId, 'STANDARD');
           } else {
-            await postMatchupSelectionEmbed(thread, nonce, discordId, opponentDiscordId, availableMatchups);
+            await postMatchAnnouncementEmbed(
+              thread,
+              { build1: selectedMatchup.build1, build2: selectedMatchup.build2, type: matchType },
+              discordId,
+              opponentDiscordId,
+              matchId,
+            );
           }
         } catch (threadErr) {
           console.error('[/queue] Failed to create match thread:', threadErr);
@@ -142,7 +151,7 @@ export const command: Command = {
             .setTitle('Match Found!')
             .setDescription(
               `You've been matched against <@${opponentDiscordId}>.\n\n` +
-              (thread ? `Head to <#${thread.id}> to choose your matchup.` : 'A match has been set up — awaiting matchup selection.')
+              (thread ? `Head to <#${thread.id}> for your match details.` : 'A match has been set up.')
             ),
         ],
       });
@@ -156,7 +165,7 @@ export const command: Command = {
               .setColor(Colors.Gold)
               .setTitle('Match Assigned')
               .setDescription(
-                `<@${discordId}> vs <@${opponentDiscordId}> — awaiting matchup selection` +
+                `<@${discordId}> vs <@${opponentDiscordId}>` +
                 (thread ? `\n\n**Thread:** <#${thread.id}>` : '')
               )
               .setTimestamp(),
@@ -165,7 +174,7 @@ export const command: Command = {
 
         // Notify the queued opponent
         await queueChannel.send({
-          content: `<@${opponentDiscordId}> — you've been matched! Check ${thread ? `<#${thread.id}>` : 'your match thread'} to choose a matchup.`,
+          content: `<@${opponentDiscordId}> — you've been matched! Check ${thread ? `<#${thread.id}>` : 'your match thread'}.`,
         });
       }
     } catch (err) {

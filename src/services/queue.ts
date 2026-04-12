@@ -7,10 +7,10 @@
  * Farming key: d2r:farming:{sortedPair}        Counter with TTL
  */
 
-import { randomUUID } from 'crypto';
 import { prisma } from '../db/client.js';
 import { getRedisClient } from './cache.js';
 import { isMatchupBanned } from './matchup.js';
+import { getDeathmatches } from './content.js';
 import {
   CacheKeys,
   type PlayerQueueState,
@@ -18,7 +18,6 @@ import {
   type MirrorRequest,
   type BuildPairing,
   type MatchFound,
-  type PendingMatchSelection,
 } from '../types/index.js';
 import { config } from '../config.js';
 
@@ -128,58 +127,6 @@ export async function leaveQueue(discordId: string): Promise<boolean> {
   return false;
 }
 
-// ── Join queue / match trigger ────────────────────────────────────────────────
-
-export interface JoinQueueResult {
-  matched: false;
-  position: number;
-}
-
-export type QueueJoinOutcome = JoinQueueResult | MatchFound;
-
-// ── Pending match selection (Redis) ──────────────────────────────────────────
-
-const PENDING_MATCH_TTL = 1800; // 30 minutes
-
-export async function storePendingMatch(selection: PendingMatchSelection): Promise<void> {
-  const redis = getRedisClient();
-  await redis.set(
-    CacheKeys.pendingMatch(selection.nonce),
-    JSON.stringify(selection),
-    'EX',
-    PENDING_MATCH_TTL,
-  );
-}
-
-export async function getPendingMatch(nonce: string): Promise<PendingMatchSelection | null> {
-  const redis = getRedisClient();
-  const raw = await redis.get(CacheKeys.pendingMatch(nonce));
-  if (!raw) return null;
-  return JSON.parse(raw) as PendingMatchSelection;
-}
-
-export async function updatePendingMatch(
-  nonce: string,
-  updates: Partial<PendingMatchSelection>,
-): Promise<PendingMatchSelection | null> {
-  const existing = await getPendingMatch(nonce);
-  if (!existing) return null;
-  const updated: PendingMatchSelection = { ...existing, ...updates };
-  const redis = getRedisClient();
-  await redis.set(
-    CacheKeys.pendingMatch(nonce),
-    JSON.stringify(updated),
-    'EX',
-    PENDING_MATCH_TTL,
-  );
-  return updated;
-}
-
-export async function clearPendingMatch(nonce: string): Promise<void> {
-  const redis = getRedisClient();
-  await redis.del(CacheKeys.pendingMatch(nonce));
-}
-
 // ── Build combination helpers ─────────────────────────────────────────────────
 
 type PlayerBuildsArg = {
@@ -190,9 +137,15 @@ type PlayerBuildsArg = {
   build5: string | null;
 };
 
+/** Returns all non-null registered builds for a player as an ordered array. */
+function getPlayerBuilds(p: PlayerBuildsArg): string[] {
+  return [p.build1, p.build2, p.build3, p.build4, p.build5].filter((b): b is string => !!b);
+}
+
 /**
- * Returns all NxM build pairings between two players, split into
- * available (non-banned) and all (every combination).
+ * Returns all NxM build pairings between two players.
+ * Each non-banned pairing is tagged STANDARD or DEATHMATCH based on the deathmatches sheet.
+ * If EITHER build lists the other as a deathmatch opponent, the pairing is DEATHMATCH.
  */
 export async function getAllowedMatchups(
   p1: PlayerBuildsArg,
@@ -200,14 +153,16 @@ export async function getAllowedMatchups(
 ): Promise<{ available: BuildPairing[]; all: BuildPairing[]; allBanned: boolean }> {
   const p1Builds = getPlayerBuilds(p1);
   const p2Builds = getPlayerBuilds(p2);
+  const deathmatches = await getDeathmatches();
   const all: BuildPairing[] = [];
   const available: BuildPairing[] = [];
 
   for (const b1 of p1Builds) {
     for (const b2 of p2Builds) {
-      const pairing: BuildPairing = { build1: b1, build2: b2 };
-      all.push(pairing);
       const banned = await isMatchupBanned(b1, b2);
+      const pairingType = isPairingDeathmatch(b1, b2, deathmatches) ? 'DEATHMATCH' : 'STANDARD';
+      const pairing: BuildPairing = { build1: b1, build2: b2, type: pairingType };
+      all.push(pairing);
       if (!banned) available.push(pairing);
     }
   }
@@ -216,14 +171,44 @@ export async function getAllowedMatchups(
 }
 
 /**
+ * Returns true if either build lists the other as a deathmatch opponent.
+ */
+function isPairingDeathmatch(b1: string, b2: string, deathmatches: Map<string, string[]>): boolean {
+  const b1Dms = deathmatches.get(b1) ?? [];
+  const b2Dms = deathmatches.get(b2) ?? [];
+  return b1Dms.includes(b2) || b2Dms.includes(b1);
+}
+
+/**
+ * Randomly picks one element from the provided pairings array.
+ * Caller must ensure the array is non-empty.
+ */
+export function selectRandomPairing(pairings: BuildPairing[]): BuildPairing {
+  const idx = Math.floor(Math.random() * pairings.length);
+  return pairings[idx];
+}
+
+// ── Join queue / match trigger ────────────────────────────────────────────────
+
+export interface JoinQueueResult {
+  matched: false;
+  position: number;
+}
+
+export type QueueJoinOutcome = JoinQueueResult | MatchFound;
+
+/**
  * Attempt to join the queue.
  *
  * If another player is already waiting, match them immediately (FIFO).
  * Checks farming cap before matching — if capped, the joining player
  * is placed in queue instead.
  *
- * Returns either a "queued" result with position, or a MatchFound result.
- * No Prisma Match record is created here — that happens after matchup confirmation.
+ * If valid pairings exist, the bot randomly selects one and creates the
+ * Prisma Match record immediately. Returns MatchFound with selectedMatchup.
+ *
+ * If all pairings are banned, returns MatchFound with allBanned: true
+ * and no matchId — the override flow in the command handler creates the record.
  */
 export async function joinQueue(joinerDiscordId: string): Promise<QueueJoinOutcome> {
   const redis = getRedisClient();
@@ -259,42 +244,63 @@ export async function joinQueue(joinerDiscordId: string): Promise<QueueJoinOutco
       break;
     }
 
-    // Compute all allowed matchup combinations
-    const { available, all, allBanned } = await getAllowedMatchups(joinerPlayer, opponentPlayer);
+    // Compute all allowed matchup combinations with deathmatch tagging
+    const { available, allBanned } = await getAllowedMatchups(joinerPlayer, opponentPlayer);
 
-    // Generate nonce for this pending match session
-    const nonce = randomUUID();
-
-    // Store pending match in Redis
-    const pending: PendingMatchSelection = {
-      nonce,
-      seasonId: season.id,
-      player1DiscordId: joinerDiscordId,
-      player2DiscordId: candidateId,
-      player1DbId: joinerPlayer.id,
-      player2DbId: opponentPlayer.id,
-      availableMatchups: available,
-      allMatchups: all,
-      allBanned,
-      matchType: 'STANDARD',
-      createdAt: Date.now(),
-    };
-    await storePendingMatch(pending);
-
-    // Set both players to in_match and record pairing
+    // Set both players to in_match and record pairing regardless of allBanned
     await Promise.all([
       setPlayerState(joinerDiscordId, 'in_match'),
       setPlayerState(candidateId, 'in_match'),
       recordPairing(joinerDiscordId, candidateId),
     ]);
 
+    if (allBanned) {
+      // All pairings banned — return without creating a Match record.
+      // The override button handler will create it after mod/player override.
+      return {
+        matched: true,
+        opponentDiscordId: candidateId,
+        matchId: 0,  // sentinel — no record created yet
+        selectedMatchup: { build1: joinerPlayer.build1, build2: opponentPlayer.build1 },
+        matchType: 'STANDARD',
+        allBanned: true,
+      };
+    }
+
+    // Randomly select a pairing
+    const selected = selectRandomPairing(available);
+
+    // Create Prisma Match record immediately
+    const match = await prisma.match.create({
+      data: {
+        seasonId: season.id,
+        player1Id: joinerPlayer.id,
+        player2Id: opponentPlayer.id,
+        build1Used: selected.build1,
+        build2Used: selected.build2,
+        type: 'STANDARD',
+        status: 'PENDING',
+      },
+    });
+
+    // Set ActiveMatchState in Redis
+    const matchState: ActiveMatchState = {
+      matchId: match.id,
+      player1DiscordId: joinerDiscordId,
+      player2DiscordId: candidateId,
+      build1: selected.build1,
+      build2: selected.build2,
+      createdAt: Date.now(),
+    };
+    await setActiveMatch(matchState);
+
     return {
       matched: true,
-      nonce,
       opponentDiscordId: candidateId,
-      availableMatchups: available,
-      allMatchups: all,
-      allBanned,
+      matchId: match.id,
+      selectedMatchup: { build1: selected.build1, build2: selected.build2 },
+      matchType: selected.type === 'DEATHMATCH' ? 'DEATHMATCH' : 'STANDARD',
+      allBanned: false,
     };
   }
 
@@ -304,6 +310,22 @@ export async function joinQueue(joinerDiscordId: string): Promise<QueueJoinOutco
   const position = await redis.llen(queueKey);
 
   return { matched: false, position };
+}
+
+/**
+ * Re-queues both players after an all-banned override was declined.
+ * Sets their state back to 'queued' and appends them to the queue list.
+ */
+export async function reQueueBothPlayers(p1Id: string, p2Id: string): Promise<void> {
+  const redis = getRedisClient();
+  const queueKey = CacheKeys.queue();
+  await Promise.all([
+    setPlayerState(p1Id, 'queued'),
+    setPlayerState(p2Id, 'queued'),
+  ]);
+  // Append both to the back of the queue
+  await redis.rpush(queueKey, p1Id);
+  await redis.rpush(queueKey, p2Id);
 }
 
 // ── Forced match assignment ───────────────────────────────────────────────────
@@ -401,45 +423,4 @@ export async function startMirrorMatch(
   ]);
 
   return { matchId: match.id };
-}
-
-// ── Build selection ───────────────────────────────────────────────────────────
-
-/** Returns all non-null registered builds for a player as an ordered array. */
-function getPlayerBuilds(p: {
-  build1: string;
-  build2: string;
-  build3: string | null;
-  build4: string | null;
-  build5: string | null;
-}): string[] {
-  return [p.build1, p.build2, p.build3, p.build4, p.build5].filter((b): b is string => !!b);
-}
-
-/**
- * Selects the builds to use for a match between two players.
- *
- * Current strategy: prefer the first non-banned pairing from all NxM combinations
- * (iterating p1 builds outer, p2 builds inner). Falls back to build1 vs build1
- * if all pairings are banned (shouldn't happen in practice).
- *
- * TODO: Replace with "least-disadvantaged matchup" algorithm once Stadium
- *       defines the scoring criteria (matchup-matrix-based scoring TBD).
- */
-export async function selectBuilds(
-  p1: { build1: string; build2: string; build3: string | null; build4: string | null; build5: string | null },
-  p2: { build1: string; build2: string; build3: string | null; build4: string | null; build5: string | null },
-): Promise<{ build1: string; build2: string }> {
-  const p1Builds = getPlayerBuilds(p1);
-  const p2Builds = getPlayerBuilds(p2);
-
-  for (const b1 of p1Builds) {
-    for (const b2 of p2Builds) {
-      const banned = await isMatchupBanned(b1, b2);
-      if (!banned) return { build1: b1, build2: b2 };
-    }
-  }
-
-  // All combos banned — return default (edge case)
-  return { build1: p1.build1, build2: p2.build1 };
 }

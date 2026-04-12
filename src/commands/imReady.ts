@@ -9,9 +9,10 @@ import {
 import type { ThreadChannel } from 'discord.js';
 import type { Command } from '../types/index.js';
 import { buildErrorEmbed, EMBED_COLORS } from '../utils/formatters.js';
-import { getForcedMatch, clearForcedMatch, getPlayerState, joinQueue, updatePendingMatch } from '../services/queue.js';
+import { getForcedMatch, clearForcedMatch, getPlayerState, joinQueue, setMatchThreadId } from '../services/queue.js';
+import { prisma } from '../db/client.js';
 import { CHANNELS } from '../config/channels.js';
-import { postMatchupSelectionEmbed, postAllBannedEmbed } from '../utils/matchupUI.js';
+import { postAllBannedEmbed, postMatchAnnouncementEmbed } from '../utils/matchupUI.js';
 
 export const command: Command = {
   data: new SlashCommandBuilder()
@@ -87,8 +88,8 @@ export const command: Command = {
         return;
       }
 
-      // Immediate match — create thread and post matchup selection UI
-      const { nonce, opponentDiscordId, availableMatchups, allMatchups, allBanned } = outcome;
+      // Immediate match found
+      const { opponentDiscordId, matchId, selectedMatchup, matchType, allBanned } = outcome;
 
       const opponentUser = await interaction.client.users.fetch(opponentDiscordId).catch(() => null);
       const threadName = `Match: ${interaction.user.username} vs ${opponentUser?.username ?? 'Opponent'}`;
@@ -101,18 +102,28 @@ export const command: Command = {
           thread = await threadParent.threads.create({
             name: threadName,
             type: ChannelType.PrivateThread,
-            reason: 'D2R 1v1 League forced match — awaiting matchup selection',
+            reason: `D2R 1v1 League forced match #${matchId}`,
           }) as ThreadChannel;
 
           await thread.members.add(discordId);
           await thread.members.add(opponentDiscordId);
 
-          await updatePendingMatch(nonce, { threadId: thread.id });
+          // Update thread ID in Redis and Postgres
+          if (matchId > 0) {
+            await setMatchThreadId(discordId, thread.id);
+            await prisma.match.update({ where: { id: matchId }, data: { threadId: thread.id } });
+          }
 
           if (allBanned) {
-            await postAllBannedEmbed(thread, nonce, discordId, opponentDiscordId);
+            await postAllBannedEmbed(thread, discordId, opponentDiscordId, 'STANDARD');
           } else {
-            await postMatchupSelectionEmbed(thread, nonce, discordId, opponentDiscordId, availableMatchups);
+            await postMatchAnnouncementEmbed(
+              thread,
+              { build1: selectedMatchup.build1, build2: selectedMatchup.build2, type: matchType },
+              discordId,
+              opponentDiscordId,
+              matchId,
+            );
           }
         } catch (threadErr) {
           console.error('[/im-ready] Failed to create match thread:', threadErr);
@@ -126,7 +137,7 @@ export const command: Command = {
             .setTitle('Ready — Match Found!')
             .setDescription(
               `You've been matched against <@${opponentDiscordId}>.\n\n` +
-              (thread ? `Head to <#${thread.id}> to choose your matchup.` : 'A match has been set up — awaiting matchup selection.')
+              (thread ? `Head to <#${thread.id}> for your match details.` : 'A match has been set up.')
             ),
         ],
       });
@@ -139,7 +150,7 @@ export const command: Command = {
               .setColor(Colors.Gold)
               .setTitle('Forced Match Assigned')
               .setDescription(
-                `<@${discordId}> vs <@${opponentDiscordId}> — awaiting matchup selection` +
+                `<@${discordId}> vs <@${opponentDiscordId}>` +
                 (thread ? `\n\n**Thread:** <#${thread.id}>` : '')
               )
               .setTimestamp(),
