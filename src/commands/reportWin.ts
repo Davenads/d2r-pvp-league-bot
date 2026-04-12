@@ -2,21 +2,23 @@ import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   EmbedBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
   Colors,
+  TextChannel,
   ThreadChannel,
 } from 'discord.js';
 import type { Command } from '../types/index.js';
-import { buildErrorEmbed, EMBED_COLORS } from '../utils/formatters.js';
+import { buildErrorEmbed } from '../utils/formatters.js';
 import { prisma } from '../db/client.js';
-import { getActiveMatch } from '../services/queue.js';
+import { getActiveMatch, clearActiveMatch, setPlayerState } from '../services/queue.js';
+import { updateLadderResult } from '../services/ladder.js';
+import { cacheDel } from '../services/cache.js';
+import { CacheKeys } from '../types/index.js';
+import { CHANNELS } from '../config/channels.js';
 
 export const command: Command = {
   data: new SlashCommandBuilder()
     .setName('report-win')
-    .setDescription('Report a match result (winner initiates)')
+    .setDescription('Report a match result (winner initiates — recorded immediately)')
     .addUserOption((opt) =>
       opt
         .setName('opponent')
@@ -26,7 +28,7 @@ export const command: Command = {
     .addBooleanOption((opt) =>
       opt
         .setName('test_rule')
-        .setDescription('Was this played under the test rule? (default: false)')
+        .setDescription('Was this a standard match played under the test rule? (default: false)')
     ),
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -45,7 +47,9 @@ export const command: Command = {
       // Verify reporter has an active match
       const activeMatch = await getActiveMatch(reporterDiscordId);
       if (!activeMatch) {
-        await interaction.editReply({ embeds: [buildErrorEmbed("You don't have an active match. Use `/queue` to find an opponent.")] });
+        await interaction.editReply({
+          embeds: [buildErrorEmbed("You don't have an active match. Use `/queue` to find an opponent.")],
+        });
         return;
       }
 
@@ -63,23 +67,12 @@ export const command: Command = {
         return;
       }
 
-      // Look up reporter in Postgres to get DB id
-      const season = await prisma.season.findFirst({ where: { active: true } });
-      if (!season) {
-        await interaction.editReply({ embeds: [buildErrorEmbed('No active season.')] });
-        return;
-      }
-
-      const reporterPlayer = await prisma.player.findFirst({
-        where: { discordId: reporterDiscordId, seasonId: season.id },
+      // Fetch full match record with both players
+      const match = await prisma.match.findUnique({
+        where: { id: activeMatch.matchId },
+        include: { player1: true, player2: true },
       });
-      if (!reporterPlayer) {
-        await interaction.editReply({ embeds: [buildErrorEmbed('Could not find your player record.')] });
-        return;
-      }
 
-      // Update the Match record: record winner + type
-      const match = await prisma.match.findUnique({ where: { id: activeMatch.matchId } });
       if (!match) {
         await interaction.editReply({ embeds: [buildErrorEmbed('Match record not found. Contact a mod.')] });
         return;
@@ -90,63 +83,104 @@ export const command: Command = {
         return;
       }
 
+      if (match.status === 'VOIDED') {
+        await interaction.editReply({ embeds: [buildErrorEmbed('This match has been voided by a mod.')] });
+        return;
+      }
+
+      // Determine winner / loser player records
+      const winnerPlayer = match.player1.discordId === reporterDiscordId ? match.player1 : match.player2;
+      const loserPlayer  = match.player1.discordId === reporterDiscordId ? match.player2 : match.player1;
+
+      // test_rule can only override STANDARD matches — DEATHMATCH and TOURNAMENT are fixed at creation.
+      const finalType = (isTestRule && match.type === 'STANDARD') ? 'TEST_RULE' : match.type;
+
+      // ── Immediately confirm the match ─────────────────────────────────────────
+
       await prisma.match.update({
         where: { id: match.id },
         data: {
-          winnerId: reporterPlayer.id,
-          type: isTestRule ? 'TEST_RULE' : 'STANDARD',
-          // status stays PENDING until opponent confirms
+          winnerId:    winnerPlayer.id,
+          type:        finalType,
+          status:      'CONFIRMED',
+          confirmedAt: new Date(),
         },
       });
 
+      // Update lastMatchAt for both players
+      await prisma.player.updateMany({
+        where: { id: { in: [winnerPlayer.id, loserPlayer.id] } },
+        data: { lastMatchAt: new Date() },
+      });
+
+      // Write W/L/Points to Google Sheets (non-fatal if sheet write fails)
+      try {
+        await updateLadderResult(winnerPlayer.discordId, loserPlayer.discordId, finalType);
+      } catch (sheetErr) {
+        console.error('[/report-win] Sheet write-back failed:', sheetErr);
+      }
+
+      // Invalidate ladder cache so next /ladder reflects the new result
+      await cacheDel(CacheKeys.ladder());
+
+      // Clear Redis match state for both players
+      await clearActiveMatch(reporterDiscordId);
+      await setPlayerState(winnerPlayer.discordId, 'idle');
+      await setPlayerState(loserPlayer.discordId, 'idle');
+
+      // ── Ephemeral reply to reporter ───────────────────────────────────────────
+
+      const typeLabel = finalType.replace('_', ' ');
       await interaction.editReply({
         embeds: [
           new EmbedBuilder()
-            .setColor(Colors.Yellow)
-            .setTitle('Result Reported')
+            .setColor(Colors.Green)
+            .setTitle('Result Recorded')
             .setDescription(
-              `You've reported a win against <@${opponent.id}>.\n\n` +
-              `**Match type:** ${isTestRule ? 'Test Rule' : 'Standard'}\n\n` +
-              `Waiting for <@${opponent.id}> to confirm.`
+              `Your win against <@${loserPlayer.discordId}> has been recorded.\n\n` +
+              `**Match type:** ${typeLabel}\n` +
+              `**Match #:** ${match.id}`
             )
-            .setFooter({ text: 'The result is not final until your opponent confirms.' }),
+            .setFooter({ text: 'GG! The match thread will be archived.' }),
         ],
       });
 
-      // Post confirmation request in the match thread (if it exists)
-      const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId(`confirm_result:${match.id}`)
-          .setLabel('Confirm Win')
-          .setStyle(ButtonStyle.Success),
-        new ButtonBuilder()
-          .setCustomId(`dispute_result:${match.id}`)
-          .setLabel('Dispute')
-          .setStyle(ButtonStyle.Danger),
-      );
+      // ── Post to #1v1-match-results ────────────────────────────────────────────
 
-      const threadEmbed = new EmbedBuilder()
-        .setColor(Colors.Yellow)
-        .setTitle('Result Awaiting Confirmation')
-        .setDescription(
-          `<@${reporterDiscordId}> has reported a **${isTestRule ? 'Test Rule' : 'Standard'}** win.\n\n` +
-          `<@${opponent.id}> — please confirm or dispute below.`
-        )
-        .setFooter({ text: `Match #${match.id}` });
+      const resultsChannel = interaction.client.channels.cache.get(CHANNELS.matchResults) as TextChannel | undefined;
+      if (resultsChannel) {
+        await resultsChannel.send({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(Colors.Green)
+              .setTitle('Match Result')
+              .addFields(
+                { name: 'Winner', value: `<@${winnerPlayer.discordId}> (${match.build1Used})`, inline: true },
+                { name: 'Loser',  value: `<@${loserPlayer.discordId}> (${match.build2Used})`,  inline: true },
+                { name: 'Type',   value: typeLabel, inline: true },
+                { name: 'Match #', value: String(match.id), inline: true },
+              )
+              .setTimestamp(),
+          ],
+        });
+      }
+
+      // ── Archive the match thread ──────────────────────────────────────────────
 
       if (activeMatch.threadId) {
         try {
           const thread = interaction.client.channels.cache.get(activeMatch.threadId) as ThreadChannel | undefined;
-          if (thread) {
-            await thread.send({ embeds: [threadEmbed], components: [confirmRow] });
-          }
+          if (thread?.isThread()) await thread.setArchived(true, 'Match result recorded');
         } catch (threadErr) {
-          console.warn('[/report-win] Failed to post to match thread:', threadErr);
+          console.warn('[/report-win] Failed to archive thread:', threadErr);
         }
       }
+
     } catch (err) {
       console.error('[/report-win]', err);
-      await interaction.editReply({ embeds: [buildErrorEmbed('Failed to report result. Try again or contact a mod.')] });
+      await interaction.editReply({
+        embeds: [buildErrorEmbed('Failed to record result. Try again or contact a mod.')],
+      });
     }
   },
 };
