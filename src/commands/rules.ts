@@ -9,7 +9,7 @@ export const command: Command = {
     .setDescription('Display the D2R 1v1 League general rules'),
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
-    await interaction.deferReply();
+    await interaction.deferReply({ ephemeral: true });
 
     try {
       const lines = await getGeneralRules();

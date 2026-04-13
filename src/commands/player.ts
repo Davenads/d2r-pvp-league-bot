@@ -26,7 +26,7 @@ export const command: Command = {
     ),
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
-    await interaction.deferReply();
+    await interaction.deferReply({ ephemeral: true });
 
     // Default to the command user if no target provided
     const target = interaction.options.getUser('player') ?? interaction.user;

@@ -29,7 +29,7 @@ export const command: Command = {
   },
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
-    await interaction.deferReply();
+    await interaction.deferReply({ ephemeral: true });
 
     const rawA = interaction.options.getString('your_build', true);
     const rawB = interaction.options.getString('opponent_build', true);

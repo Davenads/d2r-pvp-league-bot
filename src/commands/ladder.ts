@@ -60,7 +60,7 @@ export const command: Command = {
     ),
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
-    await interaction.deferReply();
+    await interaction.deferReply({ ephemeral: true });
 
     const page = interaction.options.getInteger('page') ?? 1;
 
