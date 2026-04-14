@@ -3,8 +3,8 @@
 
 export const CHANNELS = {
   // Mod-only
-  modLogs:       '1491240646168543322', // 1v1-mod-logs
-  modQueue:      '1491240699876868116', // 1v1-mod-queue
+  modLogs:       '1491240646168543322', // 1v1-mod-ops
+  modQueue:      '1491240646168543322', // 1v1-mod-ops (merged with modLogs)
 
   // Player-facing (bot posts here)
   queue:         '1491240398268403934', // 1v1-queue
@@ -12,7 +12,7 @@ export const CHANNELS = {
   leaderboard:   '1491240333005033492', // 1v1-leaderboard
   matchThreads:  '1491240507672629479', // 1v1-match-threads (thread parent)
   announcements: '1491240168294977617', // 1v1-announcements
-  signUpHere:    '1491240371173196049', // 1v1-sign-up-here
+  signUpHere:    '1491240398268403934', // 1v1-queue (sign-up-here merged into queue)
 } as const;
 
 export type ChannelKey = keyof typeof CHANNELS;
