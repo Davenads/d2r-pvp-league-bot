@@ -386,6 +386,28 @@ export async function deleteMirrorRequest(nonce: string): Promise<void> {
 }
 
 /**
+ * Scans Redis for a pending mirror request where the given Discord ID is the opponent.
+ * Returns the nonce and request data, or null if none found.
+ * Used by /admin-accept-mirror to bypass the button click requirement.
+ */
+export async function findMirrorRequestByOpponent(
+  opponentId: string,
+): Promise<{ nonce: string; req: MirrorRequest } | null> {
+  const redis = getRedisClient();
+  const keys = await redis.keys('d2r:mirror:req:*');
+  for (const key of keys) {
+    const raw = await redis.get(key);
+    if (!raw) continue;
+    const req = JSON.parse(raw) as MirrorRequest;
+    if (req.opponentId === opponentId) {
+      const nonce = key.replace('d2r:mirror:req:', '');
+      return { nonce, req };
+    }
+  }
+  return null;
+}
+
+/**
  * Creates a mirror match in Postgres and sets Redis state for both players.
  * Farming cap is intentionally skipped — mutual consent implies awareness.
  */
