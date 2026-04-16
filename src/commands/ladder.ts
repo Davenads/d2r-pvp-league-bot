@@ -19,9 +19,9 @@ async function getLadderEntries(): Promise<LadderEntry[]> {
 
   const idx = (name: string) => headers.indexOf(name);
   const entries: LadderEntry[] = rows.slice(1)
-    .filter((row) => row[idx('status')]?.trim() === 'Available')
+    .filter((row) => row[idx('status')]?.trim() === 'Available' && row[idx('discord_id')]?.trim())
     .map((row) => ({
-      rank: parseInt(row[idx('rank')] ?? '0', 10),
+      rank: parseInt(row[idx('rank')] || '0', 10),
       discordUsername: row[idx('discord_username')] ?? '',
       discordId: row[idx('discord_id')] ?? '',
       build1: row[idx('build_1')] ?? '',
