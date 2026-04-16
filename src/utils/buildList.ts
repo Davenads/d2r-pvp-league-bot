@@ -118,22 +118,6 @@ export function resolveBuild(input: string): string | undefined {
   return CANONICAL_BUILDS.find((b) => b.toLowerCase().includes(lower));
 }
 
-const CLASS_EMOJIS: Record<string, string> = {
-  'Amazon':       '🏹',
-  'Assassin':     '🗡️',
-  'Barbarian':    '⚔️',
-  'Druid':        '🌿',
-  'Necromancer':  '💀',
-  'Paladin':      '🛡️',
-  'Sorceress':    '✨',
-};
-
-/** Returns the emoji for the class of a canonical build name, e.g. "Amazon - CS Zon" → "🏹". */
-export function getClassEmoji(buildName: string): string {
-  const className = buildName.split(' - ')[0] ?? '';
-  return CLASS_EMOJIS[className] ?? '';
-}
-
 /**
  * Class name → abbreviated prefix for Ladder sheet display.
  * Internal/Prisma state always uses the full canonical name;

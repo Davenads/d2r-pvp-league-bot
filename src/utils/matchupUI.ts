@@ -13,7 +13,7 @@ import {
 import type { ThreadChannel } from 'discord.js';
 import type { BuildPairing } from '../types/index.js';
 import { EMBED_COLORS } from './formatters.js';
-import { getClassEmoji } from './buildList.js';
+import { getClassEmoji } from './classEmojis.js';
 
 /**
  * Post the "all matchups are banned" embed into a thread.
