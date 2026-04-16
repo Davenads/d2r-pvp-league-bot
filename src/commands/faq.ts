@@ -76,7 +76,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
     answer:
       '⏰ Players are expected to play approximately every **3 days**.\n\n' +
       'If you haven\'t played within that window, the bot will ping you with a **Forced Match Assignment** in `#1v1-queue`. ' +
-      'You must use `/im-ready` to acknowledge and re-enter the queue within **24 hours**.\n\n' +
+      'Run `/queue` to enter the queue — this counts as your acknowledgment. You have **24 hours** to respond.\n\n' +
       'Failure to respond will result in a **warning**. Accumulating **5 warnings** triggers automatic removal from the ladder. ' +
       'Mods can manually issue or clear warnings if needed.',
   },

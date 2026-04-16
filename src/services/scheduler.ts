@@ -108,7 +108,7 @@ async function runCadenceCheck(client: Client): Promise<void> {
               .setTitle('Forced Match Assignment')
               .setDescription(
                 `<@${player.discordId}>, it's been more than **${config.league.matchCadenceDays} days** since your last match.\n\n` +
-                `You are required to play. Run \`/im-ready\` to acknowledge and enter the queue.\n\n` +
+                `You are required to play. Run \`/queue\` to enter the queue — this will acknowledge your assignment.\n\n` +
                 `Failing to respond within **24 hours** will result in a warning.`
               )
               .setTimestamp(),

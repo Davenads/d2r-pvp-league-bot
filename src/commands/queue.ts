@@ -10,7 +10,7 @@ import type { ThreadChannel } from 'discord.js';
 import type { Command } from '../types/index.js';
 import { buildErrorEmbed, EMBED_COLORS, CAIN_EMOJI } from '../utils/formatters.js';
 import { prisma } from '../db/client.js';
-import { joinQueue, getPlayerState, setMatchThreadId } from '../services/queue.js';
+import { joinQueue, getPlayerState, setMatchThreadId, getForcedMatch, clearForcedMatch } from '../services/queue.js';
 import { CHANNELS } from '../config/channels.js';
 import { postAllBannedEmbed, postMatchAnnouncementEmbed } from '../utils/matchupUI.js';
 
@@ -65,17 +65,25 @@ export const command: Command = {
         return;
       }
 
+      // Clear any pending forced match assignment — queueing is the acknowledgment
+      const forcedAssignment = await getForcedMatch(discordId);
+      if (forcedAssignment) await clearForcedMatch(discordId);
+
       // Join the queue / attempt immediate match
       const outcome = await joinQueue(discordId);
 
       if (!outcome.matched) {
         // Added to queue — confirm to player
+        const description = forcedAssignment
+          ? "You've acknowledged your forced match assignment and been added to the queue. You'll be notified when an opponent is found."
+          : "You've been added to the match queue. You'll be notified when an opponent is found.";
+
         await interaction.editReply({
           embeds: [
             new EmbedBuilder()
               .setColor(EMBED_COLORS.info)
               .setTitle(`${CAIN_EMOJI} Joined Queue`)
-              .setDescription("You've been added to the match queue. You'll be notified when an opponent is found.")
+              .setDescription(description)
               .addFields({ name: 'Queue Position', value: `#${outcome.position}`, inline: true })
               .setFooter({ text: 'Queue order is private. You will be matched FIFO.' }),
           ],
@@ -88,7 +96,7 @@ export const command: Command = {
             embeds: [
               new EmbedBuilder()
                 .setColor(EMBED_COLORS.info)
-                .setDescription(`<@${discordId}> joined the queue — position #${outcome.position}`)
+                .setDescription(`<@${discordId}> joined the queue — position #${outcome.position}${forcedAssignment ? ' (forced match acknowledged)' : ''}`)
                 .setTimestamp(),
             ],
           });
