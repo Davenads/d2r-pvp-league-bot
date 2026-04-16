@@ -2,6 +2,9 @@ import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   Colors,
   TextChannel,
   ThreadChannel,
@@ -166,14 +169,41 @@ export const command: Command = {
         });
       }
 
-      // ── Archive the match thread ──────────────────────────────────────────────
+      // ── Post result embed in match thread ────────────────────────────────────────
 
       if (activeMatch.threadId) {
         try {
           const thread = interaction.client.channels.cache.get(activeMatch.threadId) as ThreadChannel | undefined;
-          if (thread?.isThread()) await thread.setArchived(true, 'Match result recorded');
+          if (thread?.isThread()) {
+            const winnerEmoji = getClassEmoji(winnerBuild);
+            const loserEmoji  = getClassEmoji(loserBuild);
+
+            const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+              new ButtonBuilder()
+                .setCustomId(`archive_thread:${player1DiscordId}:${player2DiscordId}`)
+                .setLabel('Archive Thread')
+                .setStyle(ButtonStyle.Secondary),
+            );
+
+            await thread.send({
+              content: `<@${winnerPlayer.discordId}> <@${loserPlayer.discordId}>`,
+              embeds: [
+                new EmbedBuilder()
+                  .setColor(Colors.Green)
+                  .setTitle(`${CAIN_EMOJI} Match #${match.id} — Complete`)
+                  .addFields(
+                    { name: 'Winner', value: `<@${winnerPlayer.discordId}> (${winnerEmoji} ${winnerBuild})`, inline: true },
+                    { name: 'Loser',  value: `<@${loserPlayer.discordId}> (${loserEmoji} ${loserBuild})`,   inline: true },
+                    { name: 'Type',   value: typeLabel, inline: true },
+                  )
+                  .setFooter({ text: 'GG! Thread auto-archives after 24 hours.' })
+                  .setTimestamp(),
+              ],
+              components: [row],
+            });
+          }
         } catch (threadErr) {
-          console.warn('[/report-win] Failed to archive thread:', threadErr);
+          console.warn('[/report-win] Failed to post thread result embed:', threadErr);
         }
       }
 

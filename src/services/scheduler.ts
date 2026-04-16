@@ -23,9 +23,10 @@ import { updateLeaderboardEmbed } from './leaderboardEmbed.js';
 import { CHANNELS } from '../config/channels.js';
 import { config } from '../config.js';
 
-const FOUR_HOURS_MS  = 4 * 60 * 60 * 1000;
-const ONE_HOUR_MS    = 60 * 60 * 1000;
+const FOUR_HOURS_MS    = 4 * 60 * 60 * 1000;
+const ONE_HOUR_MS      = 60 * 60 * 1000;
 const WARNING_DELAY_MS = 24 * 60 * 60 * 1000;  // 24h after forced assignment before warning
+const THREAD_ARCHIVE_DELAY_MS = 24 * 60 * 60 * 1000;  // 24h after confirmation before auto-archive
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 
@@ -47,6 +48,10 @@ export function startScheduler(client: Client): void {
   setInterval(() => updateLeaderboardEmbed(client).catch((e) =>
     console.error('[Scheduler] Leaderboard refresh failed:', e)
   ), ONE_HOUR_MS);
+
+  // Run thread cleanup every 4 hours (offset by 60 minutes)
+  setTimeout(() => runThreadCleanup(client), 60 * 60 * 1000);
+  setInterval(() => runThreadCleanup(client), FOUR_HOURS_MS);
 
   console.log('[Scheduler] Jobs scheduled.');
 }
@@ -210,5 +215,44 @@ async function runWarningEscalation(client: Client): Promise<void> {
     console.log(`[Scheduler] Warning escalation: ${warningsIssued} warning(s) issued.`);
   } catch (err) {
     console.error('[Scheduler] Warning escalation error:', err);
+  }
+}
+
+// ── Job 4: Thread auto-archive ────────────────────────────────────────────────
+
+async function runThreadCleanup(client: Client): Promise<void> {
+  console.log('[Scheduler] Running thread cleanup...');
+
+  try {
+    const cutoff = new Date(Date.now() - THREAD_ARCHIVE_DELAY_MS);
+
+    // Find confirmed matches with a thread that were confirmed more than 24h ago
+    const staleMatches = await prisma.match.findMany({
+      where: {
+        status: 'CONFIRMED',
+        threadId: { not: null },
+        confirmedAt: { lt: cutoff },
+      },
+      select: { id: true, threadId: true },
+    });
+
+    let archived = 0;
+
+    for (const match of staleMatches) {
+      if (!match.threadId) continue;
+      try {
+        const channel = client.channels.cache.get(match.threadId);
+        if (channel?.isThread() && !channel.archived) {
+          await channel.setArchived(true, 'Auto-archived 24h after match confirmation');
+          archived++;
+        }
+      } catch (threadErr) {
+        console.warn(`[Scheduler] Failed to auto-archive thread for match #${match.id}:`, threadErr);
+      }
+    }
+
+    console.log(`[Scheduler] Thread cleanup: ${archived} thread(s) archived out of ${staleMatches.length} stale.`);
+  } catch (err) {
+    console.error('[Scheduler] Thread cleanup error:', err);
   }
 }

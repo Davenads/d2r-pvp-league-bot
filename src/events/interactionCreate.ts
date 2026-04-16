@@ -85,6 +85,11 @@ export async function execute(interaction: Interaction): Promise<void> {
       return;
     }
 
+    if (action === 'archive_thread') {
+      await handleArchiveThread(interaction, payload);
+      return;
+    }
+
     if (action === 'cancel_match') {
       // payload format: {p1Id}:{p2Id}
       await handleCancelMatch(interaction, payload);
@@ -96,6 +101,41 @@ export async function execute(interaction: Interaction): Promise<void> {
       await handleOverrideBanned(interaction, payload);
       return;
     }
+  }
+}
+
+// ── Archive thread handler ────────────────────────────────────────────────────
+// Triggered by the "Archive Thread" button posted in a match thread on result confirmation.
+// payload: {p1Id}:{p2Id}
+
+async function handleArchiveThread(interaction: ButtonInteraction, payload: string): Promise<void> {
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    const parts = payload.split(':');
+    const p1Id = parts[0];
+    const p2Id = parts[1];
+
+    if (!p1Id || !p2Id) {
+      await interaction.editReply({ embeds: [buildErrorEmbed('Invalid button data.')] });
+      return;
+    }
+
+    if (interaction.user.id !== p1Id && interaction.user.id !== p2Id) {
+      await interaction.editReply({ embeds: [buildErrorEmbed("You aren't a participant in this match.")] });
+      return;
+    }
+
+    const thread = interaction.channel as ThreadChannel | null;
+    if (thread?.isThread()) {
+      await thread.setArchived(true, 'Archived by match participant');
+      await interaction.editReply({ content: 'Thread archived.' });
+    } else {
+      await interaction.editReply({ embeds: [buildErrorEmbed('Could not find the thread to archive.')] });
+    }
+  } catch (err) {
+    console.error('[archive_thread]', err);
+    await interaction.editReply({ embeds: [buildErrorEmbed('Failed to archive. Contact a mod.')] });
   }
 }
 
