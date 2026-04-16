@@ -68,14 +68,15 @@ async function runCadenceCheck(client: Client): Promise<void> {
     const cadenceMs = config.league.matchCadenceDays * 24 * 60 * 60 * 1000;
     const cutoff = new Date(Date.now() - cadenceMs);
 
-    // Find all ACTIVE players whose last match was before the cutoff (or never)
+    // Find all ACTIVE players whose last match was before the cutoff,
+    // or who have never played but registered long enough ago to be considered overdue.
     const overduePlayers = await prisma.player.findMany({
       where: {
         seasonId: season.id,
         status: 'ACTIVE',
         OR: [
-          { lastMatchAt: null },
           { lastMatchAt: { lt: cutoff } },
+          { lastMatchAt: null, registeredAt: { lt: cutoff } },
         ],
       },
       select: { discordId: true, discordUsername: true },
