@@ -97,5 +97,5 @@ export async function fetchFaq(): Promise<string[][]> {
  * Returns the full Ladder tab as a 2D array (including header row).
  */
 export async function fetchLadder(): Promise<string[][]> {
-  return readRange(`${SHEET_TABS.ladder}!A:R`);
+  return readRange(`${SHEET_TABS.ladder}!A:U`);
 }

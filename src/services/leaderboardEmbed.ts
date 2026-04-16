@@ -30,7 +30,7 @@ function parseLadderRows(rows: string[][]): LadderEntry[] {
 
   return rows
     .slice(1)
-    .filter((row) => row[idx('status')]?.trim() === 'Active')
+    .filter((row) => row[idx('status')]?.trim() === 'Available')
     .map((row) => ({
       rank:           parseInt(row[idx('rank')] ?? '0', 10),
       discordUsername: row[idx('discord_username')] ?? '',
