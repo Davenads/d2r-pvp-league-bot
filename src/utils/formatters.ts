@@ -60,8 +60,17 @@ export function buildMatchupEmbed(rules: MatchupRules): EmbedBuilder {
 // ── Ladder embed ─────────────────────────────────────────────────────────────
 
 export function buildLadderEmbed(entries: LadderEntry[], page: number, totalPages: number): EmbedBuilder {
-  const rows = entries
-    .map((e) => `**#${e.rank}** ${e.discordUsername}`)
+  const sorted = [...entries].sort((a, b) => {
+    const aRank = a.rank > 0 && !isNaN(a.rank) ? a.rank : Infinity;
+    const bRank = b.rank > 0 && !isNaN(b.rank) ? b.rank : Infinity;
+    return aRank - bRank;
+  });
+
+  const rows = sorted
+    .map((e) => {
+      const rankLabel = e.rank > 0 && !isNaN(e.rank) ? `#${e.rank}` : '—';
+      return `**${rankLabel}** ${e.discordUsername} *(${e.points} pts)*`;
+    })
     .join('\n');
 
   return new EmbedBuilder()

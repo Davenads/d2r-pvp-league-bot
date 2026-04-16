@@ -30,7 +30,7 @@ function parseLadderRows(rows: string[][]): LadderEntry[] {
 
   return rows
     .slice(1)
-    .filter((row) => row[idx('status')]?.trim() === 'Available' && row[idx('discord_id')]?.trim())
+    .filter((row) => row[idx('status')]?.trim() === 'Available' && (row[idx('discord_id')] || '').trim())
     .map((row) => ({
       rank:           parseInt(row[idx('rank')] || '0', 10),
       discordUsername: row[idx('discord_username')] ?? '',
@@ -59,9 +59,18 @@ function parseLadderRows(rows: string[][]): LadderEntry[] {
 // ── Embed builder ─────────────────────────────────────────────────────────────
 
 function buildLeaderboardEmbed(entries: LadderEntry[]): EmbedBuilder {
+  const sorted = [...entries].sort((a, b) => {
+    const aRank = a.rank > 0 && !isNaN(a.rank) ? a.rank : Infinity;
+    const bRank = b.rank > 0 && !isNaN(b.rank) ? b.rank : Infinity;
+    return aRank - bRank;
+  });
+
   const lines =
-    entries.length > 0
-      ? entries.map((e) => `**#${e.rank}** ${e.discordUsername}`).join('\n')
+    sorted.length > 0
+      ? sorted.map((e) => {
+          const rankLabel = e.rank > 0 && !isNaN(e.rank) ? `#${e.rank}` : '—';
+          return `**${rankLabel}** ${e.discordUsername} *(${e.points} pts)*`;
+        }).join('\n')
       : '*No active players on the ladder yet.*';
 
   return new EmbedBuilder()
