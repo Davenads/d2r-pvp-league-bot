@@ -1,7 +1,7 @@
 import { SlashCommandBuilder, ChatInputCommandInteraction, EmbedBuilder } from 'discord.js';
 import type { Command } from '../../types/index.js';
 import { cacheFlushPattern } from '../../services/cache.js';
-import { EMBED_COLORS } from '../../utils/formatters.js';
+import { EMBED_COLORS, CAIN_EMOJI } from '../../utils/formatters.js';
 import { assertModRole } from '../../utils/modGuard.js';
 
 const TAB_PATTERNS: Record<string, string> = {
@@ -52,7 +52,7 @@ export const command: Command = {
 
       const embed = new EmbedBuilder()
         .setColor(EMBED_COLORS.success)
-        .setTitle('Cache Refreshed')
+        .setTitle(`${CAIN_EMOJI} Cache Refreshed`)
         .setDescription(`Cleared **${deleted}** cached key(s) for **${tab}**.\nThe next command using this data will fetch fresh from Google Sheets.`);
 
       await interaction.editReply({ embeds: [embed] });

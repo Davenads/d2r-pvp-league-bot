@@ -10,10 +10,10 @@ import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   EmbedBuilder,
-  Colors,
+  Colors,
 } from 'discord.js';
 import type { Command } from '../../types/index.js';
-import { buildErrorEmbed, EMBED_COLORS } from '../../utils/formatters.js';
+import { buildErrorEmbed, EMBED_COLORS, CAIN_EMOJI } from '../../utils/formatters.js';
 import { getPlayerState, getActiveMatch, getQueuePosition } from '../../services/queue.js';
 import { prisma } from '../../db/client.js';
 import { assertModRole } from '../../utils/modGuard.js';
@@ -66,7 +66,7 @@ export const command: Command = {
 
       const embed = new EmbedBuilder()
         .setColor(stateColor)
-        .setTitle(`Player State: ${targetUser.username}`)
+        .setTitle(`${CAIN_EMOJI} Player State: ${targetUser.username}`)
         .addFields(
           { name: 'Discord ID', value: targetUser.id, inline: true },
           { name: 'Redis State', value: redisState, inline: true },

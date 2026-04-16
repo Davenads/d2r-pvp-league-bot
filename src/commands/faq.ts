@@ -5,7 +5,7 @@ import {
   EmbedBuilder,
 } from 'discord.js';
 import type { Command } from '../types/index.js';
-import { buildErrorEmbed, EMBED_COLORS } from '../utils/formatters.js';
+import { buildErrorEmbed, EMBED_COLORS, CAIN_EMOJI } from '../utils/formatters.js';
 
 // ── Hardcoded FAQ entries ─────────────────────────────────────────────────────
 
@@ -150,7 +150,7 @@ export const command: Command = {
         embeds: [
           new EmbedBuilder()
             .setColor(EMBED_COLORS.info)
-            .setTitle('⚔️ D2R 1v1 League — Frequently Asked Questions')
+            .setTitle(`${CAIN_EMOJI} D2R 1v1 League — Frequently Asked Questions`)
             .setDescription(lines)
             .setFooter({ text: 'Use /faq topic:<question> to see the full answer.' }),
         ],

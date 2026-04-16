@@ -15,7 +15,7 @@ import {
   TextChannel,
 } from 'discord.js';
 import type { Command } from '../../types/index.js';
-import { buildErrorEmbed, EMBED_COLORS } from '../../utils/formatters.js';
+import { buildErrorEmbed, EMBED_COLORS, CAIN_EMOJI } from '../../utils/formatters.js';
 import { getPlayerState, setPlayerState, clearActiveMatch, leaveQueue } from '../../services/queue.js';
 import { CHANNELS } from '../../config/channels.js';
 import { assertModRole } from '../../utils/modGuard.js';
@@ -65,7 +65,7 @@ export const command: Command = {
         embeds: [
           new EmbedBuilder()
             .setColor(Colors.Green)
-            .setTitle('Player State Cleared')
+            .setTitle(`${CAIN_EMOJI} Player State Cleared`)
             .addFields(
               { name: 'Player', value: `<@${targetUser.id}>`, inline: true },
               { name: 'State before', value: stateBefore, inline: true },
@@ -83,7 +83,7 @@ export const command: Command = {
           embeds: [
             new EmbedBuilder()
               .setColor(EMBED_COLORS.warning)
-              .setTitle('Player State Manually Cleared')
+              .setTitle(`${CAIN_EMOJI} Player State Manually Cleared`)
               .setDescription(
                 `<@${interaction.user.id}> reset the state of <@${targetUser.id}>.\n\n` +
                 `**State before:** ${stateBefore}\n` +

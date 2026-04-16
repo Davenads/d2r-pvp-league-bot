@@ -8,7 +8,7 @@ import {
 } from 'discord.js';
 import type { ThreadChannel } from 'discord.js';
 import type { Command } from '../types/index.js';
-import { buildErrorEmbed, EMBED_COLORS } from '../utils/formatters.js';
+import { buildErrorEmbed, EMBED_COLORS, CAIN_EMOJI } from '../utils/formatters.js';
 import { prisma } from '../db/client.js';
 import { joinQueue, getPlayerState, setMatchThreadId } from '../services/queue.js';
 import { CHANNELS } from '../config/channels.js';
@@ -74,7 +74,7 @@ export const command: Command = {
           embeds: [
             new EmbedBuilder()
               .setColor(EMBED_COLORS.info)
-              .setTitle('Joined Queue')
+              .setTitle(`${CAIN_EMOJI} Joined Queue`)
               .setDescription("You've been added to the match queue. You'll be notified when an opponent is found.")
               .addFields({ name: 'Queue Position', value: `#${outcome.position}`, inline: true })
               .setFooter({ text: 'Queue order is private. You will be matched FIFO.' }),
@@ -148,7 +148,7 @@ export const command: Command = {
         embeds: [
           new EmbedBuilder()
             .setColor(Colors.Green)
-            .setTitle('Match Found!')
+            .setTitle(`${CAIN_EMOJI} Match Found!`)
             .setDescription(
               `You've been matched against <@${opponentDiscordId}>.\n\n` +
               (thread ? `Head to <#${thread.id}> for your match details.` : 'A match has been set up.')
@@ -163,7 +163,7 @@ export const command: Command = {
           embeds: [
             new EmbedBuilder()
               .setColor(Colors.Gold)
-              .setTitle('Match Assigned')
+              .setTitle(`${CAIN_EMOJI} Match Assigned`)
               .setDescription(
                 `<@${discordId}> vs <@${opponentDiscordId}>` +
                 (thread ? `\n\n**Thread:** <#${thread.id}>` : '')

@@ -8,7 +8,7 @@ import {
 } from 'discord.js';
 import type { ThreadChannel } from 'discord.js';
 import type { Command } from '../types/index.js';
-import { buildErrorEmbed, EMBED_COLORS } from '../utils/formatters.js';
+import { buildErrorEmbed, EMBED_COLORS, CAIN_EMOJI } from '../utils/formatters.js';
 import { getForcedMatch, clearForcedMatch, getPlayerState, joinQueue, setMatchThreadId } from '../services/queue.js';
 import { prisma } from '../db/client.js';
 import { CHANNELS } from '../config/channels.js';
@@ -42,7 +42,7 @@ export const command: Command = {
           embeds: [
             new EmbedBuilder()
               .setColor(EMBED_COLORS.warning)
-              .setTitle('No Forced Match Pending')
+              .setTitle(`${CAIN_EMOJI} No Forced Match Pending`)
               .setDescription(
                 "You don't have a pending forced match assignment right now.\n\n" +
                 "Use `/queue` to enter the normal match queue."
@@ -64,7 +64,7 @@ export const command: Command = {
           embeds: [
             new EmbedBuilder()
               .setColor(Colors.Green)
-              .setTitle('Ready — Added to Queue')
+              .setTitle(`${CAIN_EMOJI} Ready — Added to Queue`)
               .setDescription(
                 "You've acknowledged your forced match assignment and have been added to the queue.\n\n" +
                 `**Queue position:** #${outcome.position}\n\n` +
@@ -134,7 +134,7 @@ export const command: Command = {
         embeds: [
           new EmbedBuilder()
             .setColor(Colors.Gold)
-            .setTitle('Ready — Match Found!')
+            .setTitle(`${CAIN_EMOJI} Ready — Match Found!`)
             .setDescription(
               `You've been matched against <@${opponentDiscordId}>.\n\n` +
               (thread ? `Head to <#${thread.id}> for your match details.` : 'A match has been set up.')
@@ -148,7 +148,7 @@ export const command: Command = {
           embeds: [
             new EmbedBuilder()
               .setColor(Colors.Gold)
-              .setTitle('Forced Match Assigned')
+              .setTitle(`${CAIN_EMOJI} Forced Match Assigned`)
               .setDescription(
                 `<@${discordId}> vs <@${opponentDiscordId}>` +
                 (thread ? `\n\n**Thread:** <#${thread.id}>` : '')

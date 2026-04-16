@@ -6,7 +6,7 @@ import {
   TextChannel,
 } from 'discord.js';
 import type { Command } from '../../types/index.js';
-import { buildErrorEmbed } from '../../utils/formatters.js';
+import { buildErrorEmbed, CAIN_EMOJI } from '../../utils/formatters.js';
 import { prisma } from '../../db/client.js';
 import { CHANNELS } from '../../config/channels.js';
 import { assertModRole } from '../../utils/modGuard.js';
@@ -84,7 +84,7 @@ export const command: Command = {
 
       const embed = new EmbedBuilder()
         .setColor(Colors.Green)
-        .setTitle('Warning Cleared')
+        .setTitle(`${CAIN_EMOJI} Warning Cleared`)
         .setDescription(`<@${target.id}>'s most recent warning has been cleared.`)
         .addFields(
           { name: 'Remaining Warnings', value: `${newWarningCount}`, inline: true },

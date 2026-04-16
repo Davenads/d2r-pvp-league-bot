@@ -7,7 +7,7 @@ import {
   ThreadChannel,
 } from 'discord.js';
 import type { Command } from '../types/index.js';
-import { buildErrorEmbed } from '../utils/formatters.js';
+import { buildErrorEmbed, CAIN_EMOJI, getClassEmoji } from '../utils/formatters.js';
 import { prisma } from '../db/client.js';
 import { getActiveMatch, clearActiveMatch, setPlayerState } from '../services/queue.js';
 import { updateLadderResult } from '../services/ladder.js';
@@ -81,9 +81,12 @@ export const command: Command = {
         return;
       }
 
-      // Determine winner / loser player records from the named winner
-      const winnerPlayer = match.player1.discordId === winner.id ? match.player1 : match.player2;
-      const loserPlayer  = match.player1.discordId === winner.id ? match.player2 : match.player1;
+      // Determine winner / loser player records and their respective builds
+      const winnerIsP1   = match.player1.discordId === winner.id;
+      const winnerPlayer = winnerIsP1 ? match.player1 : match.player2;
+      const loserPlayer  = winnerIsP1 ? match.player2 : match.player1;
+      const winnerBuild  = winnerIsP1 ? match.build1Used : match.build2Used;
+      const loserBuild   = winnerIsP1 ? match.build2Used : match.build1Used;
 
       // test_rule can only override STANDARD matches — DEATHMATCH and TOURNAMENT are fixed at creation.
       const finalType = (isTestRule && match.type === 'STANDARD') ? 'TEST_RULE' : match.type;
@@ -133,7 +136,7 @@ export const command: Command = {
         embeds: [
           new EmbedBuilder()
             .setColor(Colors.Green)
-            .setTitle('Result Recorded')
+            .setTitle(`${CAIN_EMOJI} Result Recorded`)
             .setDescription(
               `**<@${winnerPlayer.discordId}>** defeated **<@${loserPlayer.discordId}>**.\n\n` +
               `**Match type:** ${typeLabel}\n` +
@@ -151,10 +154,10 @@ export const command: Command = {
           embeds: [
             new EmbedBuilder()
               .setColor(Colors.Green)
-              .setTitle('Match Result')
+              .setTitle(`${CAIN_EMOJI} Match Result`)
               .addFields(
-                { name: 'Winner', value: `<@${winnerPlayer.discordId}> (${match.build1Used})`, inline: true },
-                { name: 'Loser',  value: `<@${loserPlayer.discordId}> (${match.build2Used})`,  inline: true },
+                { name: 'Winner', value: `<@${winnerPlayer.discordId}> (${getClassEmoji(winnerBuild)} ${winnerBuild})`, inline: true },
+                { name: 'Loser',  value: `<@${loserPlayer.discordId}> (${getClassEmoji(loserBuild)} ${loserBuild})`,  inline: true },
                 { name: 'Type',   value: typeLabel, inline: true },
                 { name: 'Match #', value: String(match.id), inline: true },
               )

@@ -7,7 +7,7 @@ import {
   ThreadChannel,
 } from 'discord.js';
 import type { Command } from '../../types/index.js';
-import { buildErrorEmbed, EMBED_COLORS } from '../../utils/formatters.js';
+import { buildErrorEmbed, EMBED_COLORS, CAIN_EMOJI } from '../../utils/formatters.js';
 import { prisma } from '../../db/client.js';
 import { clearActiveMatch, setPlayerState } from '../../services/queue.js';
 import { updateLadderResult } from '../../services/ladder.js';
@@ -149,7 +149,7 @@ export const command: Command = {
         embeds: [
           new EmbedBuilder()
             .setColor(Colors.Green)
-            .setTitle('Match Result Set')
+            .setTitle(`${CAIN_EMOJI} Match Result Set`)
             .addFields(
               { name: 'Winner', value: `<@${winnerRecord.discordId}>`, inline: true },
               { name: 'Loser', value: `<@${loserRecord.discordId}>`, inline: true },
@@ -169,10 +169,10 @@ export const command: Command = {
           embeds: [
             new EmbedBuilder()
               .setColor(Colors.Green)
-              .setTitle('Match Result (Admin Override)')
+              .setTitle(`${CAIN_EMOJI} Match Result (Admin Override)`)
               .addFields(
-                { name: 'Winner', value: `<@${winnerRecord.discordId}> (${match.build1Used})`, inline: true },
-                { name: 'Loser', value: `<@${loserRecord.discordId}> (${match.build2Used})`, inline: true },
+                { name: 'Winner', value: `<@${winnerRecord.discordId}> (${winnerUser.id === p1User.id ? match.build1Used : match.build2Used})`, inline: true },
+                { name: 'Loser', value: `<@${loserRecord.discordId}> (${winnerUser.id === p1User.id ? match.build2Used : match.build1Used})`, inline: true },
                 { name: 'Type', value: typeLabel, inline: true },
               )
               .setTimestamp(),
@@ -187,7 +187,7 @@ export const command: Command = {
           embeds: [
             new EmbedBuilder()
               .setColor(EMBED_COLORS.warning)
-              .setTitle('Admin: Match Result Override')
+              .setTitle(`${CAIN_EMOJI} Admin: Match Result Override`)
               .addFields(
                 { name: 'Match #', value: String(match.id), inline: true },
                 { name: 'Override By', value: `<@${interaction.user.id}>`, inline: true },

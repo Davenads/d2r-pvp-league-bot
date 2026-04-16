@@ -3,7 +3,7 @@ import type { Command } from '../types/index.js';
 import { getBuildChoices, resolveBuild } from '../utils/buildList.js';
 import { getDeathmatches } from '../services/matchup.js';
 import { buildErrorEmbed, buildUnavailableEmbed, EMBED_COLORS } from '../utils/formatters.js';
-import { getClassEmoji } from '../utils/classEmojis.js';
+import { getClassEmoji, CAIN_EMOJI } from '../utils/classEmojis.js';
 
 export const command: Command = {
   data: new SlashCommandBuilder()
@@ -45,7 +45,7 @@ export const command: Command = {
       const buildLabel = emoji ? `${emoji} ${build}` : build;
       const embed = new EmbedBuilder()
         .setColor(EMBED_COLORS.rules)
-        .setTitle(`Deathmatch Alternatives — ${buildLabel}`)
+        .setTitle(`${CAIN_EMOJI} Deathmatch Alternatives — ${buildLabel}`)
         .setDescription(
           result.alternatives.length
             ? result.alternatives.map((alt, i) => {

@@ -14,11 +14,11 @@ import {
   EmbedBuilder,
   Colors,
   TextChannel,
-  ChannelType,
+  ChannelType,
 } from 'discord.js';
 import type { ThreadChannel } from 'discord.js';
 import type { Command } from '../../types/index.js';
-import { buildErrorEmbed, EMBED_COLORS } from '../../utils/formatters.js';
+import { buildErrorEmbed, EMBED_COLORS, CAIN_EMOJI } from '../../utils/formatters.js';
 import { prisma } from '../../db/client.js';
 import {
   getAllowedMatchups,
@@ -134,7 +134,7 @@ export const command: Command = {
             embeds: [
               new EmbedBuilder()
                 .setColor(EMBED_COLORS.warning)
-                .setTitle('Tournament Match — All Pairings Banned')
+                .setTitle(`${CAIN_EMOJI} Tournament Match — All Pairings Banned`)
                 .setDescription(
                   `<@${p1User.id}> vs <@${p2User.id}> — awaiting override decision` +
                   (thread ? `\n\n**Thread:** <#${thread.id}>` : '')
@@ -148,7 +148,7 @@ export const command: Command = {
           embeds: [
             new EmbedBuilder()
               .setColor(EMBED_COLORS.warning)
-              .setTitle('All Matchups Banned')
+              .setTitle(`${CAIN_EMOJI} All Matchups Banned`)
               .setDescription(
                 (stateWarning ? stateWarning + '\n' : '') +
                 `All build pairings between <@${p1User.id}> and <@${p2User.id}> are banned.\n\n` +
@@ -209,7 +209,7 @@ export const command: Command = {
           embeds: [
             new EmbedBuilder()
               .setColor(Colors.Gold)
-              .setTitle('Tournament Match Assigned')
+              .setTitle(`${CAIN_EMOJI} Tournament Match Assigned`)
               .setDescription(
                 `<@${p1User.id}> vs <@${p2User.id}>\n` +
                 `**Matchup:** ${selected.build1} vs ${selected.build2}\n` +
@@ -228,7 +228,7 @@ export const command: Command = {
           embeds: [
             new EmbedBuilder()
               .setColor(EMBED_COLORS.warning)
-              .setTitle('Admin: Tournament Match Created')
+              .setTitle(`${CAIN_EMOJI} Admin: Tournament Match Created`)
               .addFields(
                 { name: 'Created By', value: `<@${interaction.user.id}>`, inline: true },
                 { name: 'Player 1', value: `<@${p1User.id}> (${selected.build1})`, inline: true },
@@ -246,7 +246,7 @@ export const command: Command = {
         embeds: [
           new EmbedBuilder()
             .setColor(Colors.Green)
-            .setTitle('Tournament Match Created')
+            .setTitle(`${CAIN_EMOJI} Tournament Match Created`)
             .setDescription(
               (stateWarning ? stateWarning + '\n' : '') +
               `Tournament match #${match.id} created between <@${p1User.id}> and <@${p2User.id}>.\n\n` +

@@ -6,7 +6,7 @@ import {
 } from 'discord.js';
 import type { Command } from '../../types/index.js';
 import { prisma } from '../../db/client.js';
-import { EMBED_COLORS } from '../../utils/formatters.js';
+import { EMBED_COLORS, CAIN_EMOJI } from '../../utils/formatters.js';
 import { assertModRole } from '../../utils/modGuard.js';
 
 export const command: Command = {
@@ -61,7 +61,7 @@ export const command: Command = {
 
         const embed = new EmbedBuilder()
           .setColor(Colors.Green)
-          .setTitle('Season Opened')
+          .setTitle(`${CAIN_EMOJI} Season Opened`)
           .setDescription(`**${season.name}** is now active. Players can register.`)
           .addFields(
             { name: 'Season ID', value: String(season.id), inline: true },
@@ -82,7 +82,7 @@ export const command: Command = {
           await interaction.editReply({
             embeds: [new EmbedBuilder()
               .setColor(EMBED_COLORS.warning)
-              .setTitle('No Active Season')
+              .setTitle(`${CAIN_EMOJI} No Active Season`)
               .setDescription('There is no active season to close.')],
           });
           return;
@@ -100,7 +100,7 @@ export const command: Command = {
           embeds: [
             new EmbedBuilder()
               .setColor(Colors.Red)
-              .setTitle('Season Closed')
+              .setTitle(`${CAIN_EMOJI} Season Closed`)
               .setDescription(`**${season.name}** has been closed.`)
               .addFields(
                 { name: 'Players', value: String(playerCount), inline: true },
@@ -122,7 +122,7 @@ export const command: Command = {
             await interaction.editReply({
               embeds: [new EmbedBuilder()
                 .setColor(EMBED_COLORS.warning)
-                .setTitle('No Seasons Found')
+                .setTitle(`${CAIN_EMOJI} No Seasons Found`)
                 .setDescription('No seasons have been created yet. Use `/admin-season open` to start one.')],
             });
             return;
@@ -131,7 +131,7 @@ export const command: Command = {
           await interaction.editReply({
             embeds: [new EmbedBuilder()
               .setColor(EMBED_COLORS.warning)
-              .setTitle('No Active Season')
+              .setTitle(`${CAIN_EMOJI} No Active Season`)
               .setDescription(`The most recent season was **${latest.name}**, which has ended.`)
               .addFields(
                 { name: 'Ended', value: latest.endedAt ? `<t:${Math.floor(latest.endedAt.getTime() / 1000)}:F>` : 'Unknown', inline: true },
@@ -149,7 +149,7 @@ export const command: Command = {
           embeds: [
             new EmbedBuilder()
               .setColor(Colors.Green)
-              .setTitle('Active Season')
+              .setTitle(`${CAIN_EMOJI} Active Season`)
               .setDescription(`**${season.name}** is currently running.`)
               .addFields(
                 { name: 'Season ID', value: String(season.id), inline: true },

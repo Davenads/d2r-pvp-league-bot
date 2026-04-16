@@ -4,7 +4,7 @@ import {
   EmbedBuilder,
 } from 'discord.js';
 import type { Command } from '../../types/index.js';
-import { EMBED_COLORS } from '../../utils/formatters.js';
+import { EMBED_COLORS, CAIN_EMOJI } from '../../utils/formatters.js';
 import { getQueueList } from '../../services/queue.js';
 import { prisma } from '../../db/client.js';
 import { assertModRole } from '../../utils/modGuard.js';
@@ -26,7 +26,7 @@ export const command: Command = {
           embeds: [
             new EmbedBuilder()
               .setColor(EMBED_COLORS.info)
-              .setTitle('Match Queue')
+              .setTitle(`${CAIN_EMOJI} Match Queue`)
               .setDescription('The queue is currently empty.')
               .setTimestamp(),
           ],
@@ -60,7 +60,7 @@ export const command: Command = {
         embeds: [
           new EmbedBuilder()
             .setColor(EMBED_COLORS.info)
-            .setTitle(`Match Queue (${queue.length} player${queue.length !== 1 ? 's' : ''})`)
+            .setTitle(`${CAIN_EMOJI} Match Queue (${queue.length} player${queue.length !== 1 ? 's' : ''})`)
             .setDescription(entries.join('\n'))
             .setFooter({ text: 'Queue is FIFO — position 1 is next to be matched.' })
             .setTimestamp(),

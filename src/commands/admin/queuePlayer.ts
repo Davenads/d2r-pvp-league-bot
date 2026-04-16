@@ -16,7 +16,7 @@ import {
 } from 'discord.js';
 import type { ThreadChannel } from 'discord.js';
 import type { Command } from '../../types/index.js';
-import { buildErrorEmbed, EMBED_COLORS } from '../../utils/formatters.js';
+import { buildErrorEmbed, EMBED_COLORS, CAIN_EMOJI } from '../../utils/formatters.js';
 import { prisma } from '../../db/client.js';
 import { joinQueue, getPlayerState, setMatchThreadId } from '../../services/queue.js';
 import { postAllBannedEmbed, postMatchAnnouncementEmbed } from '../../utils/matchupUI.js';
@@ -97,7 +97,7 @@ export const command: Command = {
           embeds: [
             new EmbedBuilder()
               .setColor(EMBED_COLORS.info)
-              .setTitle('Player Queued')
+              .setTitle(`${CAIN_EMOJI} Player Queued`)
               .setDescription(`<@${targetUser.id}> has been added to the queue at position #${outcome.position}.`)
               .setFooter({ text: 'They will be matched when another player joins.' }),
           ],
@@ -163,7 +163,7 @@ export const command: Command = {
         embeds: [
           new EmbedBuilder()
             .setColor(Colors.Green)
-            .setTitle('Match Found')
+            .setTitle(`${CAIN_EMOJI} Match Found`)
             .setDescription(
               `<@${targetUser.id}> was matched against <@${opponentDiscordId}>.\n\n` +
               (thread ? `Match thread: <#${thread.id}>` : 'Thread creation failed — check logs.')
@@ -178,7 +178,7 @@ export const command: Command = {
           embeds: [
             new EmbedBuilder()
               .setColor(Colors.Gold)
-              .setTitle('Match Assigned')
+              .setTitle(`${CAIN_EMOJI} Match Assigned`)
               .setDescription(
                 `<@${targetUser.id}> vs <@${opponentDiscordId}>` +
                 (thread ? `\n\n**Thread:** <#${thread.id}>` : '')

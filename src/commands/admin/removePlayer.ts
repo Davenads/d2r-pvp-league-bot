@@ -6,7 +6,7 @@ import {
   TextChannel,
 } from 'discord.js';
 import type { Command } from '../../types/index.js';
-import { buildErrorEmbed } from '../../utils/formatters.js';
+import { buildErrorEmbed, CAIN_EMOJI } from '../../utils/formatters.js';
 import { prisma } from '../../db/client.js';
 import { CHANNELS } from '../../config/channels.js';
 import { updatePlayerLadderStatus } from '../../services/ladder.js';
@@ -72,7 +72,7 @@ export const command: Command = {
         embeds: [
           new EmbedBuilder()
             .setColor(Colors.Red)
-            .setTitle('Player Removed')
+            .setTitle(`${CAIN_EMOJI} Player Removed`)
             .setDescription(`<@${target.id}> has been removed from **${season.name}**.`)
             .addFields({ name: 'Reason', value: reason })
             .setFooter({ text: `Removed by ${interaction.user.username}` })
@@ -87,7 +87,7 @@ export const command: Command = {
           embeds: [
             new EmbedBuilder()
               .setColor(Colors.Red)
-              .setTitle('Admin: Player Removed')
+              .setTitle(`${CAIN_EMOJI} Admin: Player Removed`)
               .addFields(
                 { name: 'Player', value: `<@${target.id}> (${target.username})`, inline: true },
                 { name: 'Removed By', value: `<@${interaction.user.id}>`, inline: true },

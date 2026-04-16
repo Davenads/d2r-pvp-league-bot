@@ -4,7 +4,7 @@ import { getBuildChoices, resolveBuild } from '../utils/buildList.js';
 import { cacheGet, cacheSet } from '../services/cache.js';
 import { fetchBannedMatchups } from '../services/sheets.js';
 import { CacheKeys } from '../types/index.js';
-import { buildErrorEmbed, buildUnavailableEmbed, EMBED_COLORS } from '../utils/formatters.js';
+import { buildErrorEmbed, buildUnavailableEmbed, EMBED_COLORS, CAIN_EMOJI } from '../utils/formatters.js';
 import { config } from '../config.js';
 import { getClassEmoji } from '../utils/classEmojis.js';
 
@@ -71,7 +71,7 @@ export const command: Command = {
       if (!filtered.length) {
         const embed = new EmbedBuilder()
           .setColor(EMBED_COLORS.info)
-          .setTitle('Banned Matchups')
+          .setTitle(`${CAIN_EMOJI} Banned Matchups`)
           .setDescription(filterBuild ? `No banned matchups found for **${filterBuild}**.` : '*No banned matchups found.*');
         await interaction.editReply({ embeds: [embed] });
         return;
@@ -94,7 +94,7 @@ export const command: Command = {
 
       const embed = new EmbedBuilder()
         .setColor(EMBED_COLORS.banned)
-        .setTitle(filterLabel ? `Banned Matchups — ${filterLabel}` : 'All Banned Matchups')
+        .setTitle(filterLabel ? `${CAIN_EMOJI} Banned Matchups — ${filterLabel}` : `${CAIN_EMOJI} All Banned Matchups`)
         .setDescription(lines.join('\n'));
 
       await interaction.editReply({ embeds: [embed] });

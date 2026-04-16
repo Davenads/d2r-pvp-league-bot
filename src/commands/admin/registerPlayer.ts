@@ -8,7 +8,7 @@ import {
 } from 'discord.js';
 import type { Command } from '../../types/index.js';
 import { getBuildChoices, resolveBuild } from '../../utils/buildList.js';
-import { buildErrorEmbed, buildRegistrationEmbed } from '../../utils/formatters.js';
+import { buildErrorEmbed, buildRegistrationEmbed, CAIN_EMOJI } from '../../utils/formatters.js';
 import { getClassEmoji } from '../../utils/classEmojis.js';
 import { prisma } from '../../db/client.js';
 import { CHANNELS } from '../../config/channels.js';
@@ -163,7 +163,7 @@ export const command: Command = {
         embeds: [
           new EmbedBuilder()
             .setColor(Colors.Green)
-            .setTitle('Player Registered')
+            .setTitle(`${CAIN_EMOJI} Player Registered`)
             .setDescription(`<@${target.id}> has been registered for **${season.name}**.`)
             .addFields({ name: 'Registered Builds', value: buildList, inline: false })
             .setFooter({ text: `Registered by ${interaction.user.username}` })
@@ -188,7 +188,7 @@ export const command: Command = {
           embeds: [
             new EmbedBuilder()
               .setColor(Colors.Blurple)
-              .setTitle('Admin: Player Registered')
+              .setTitle(`${CAIN_EMOJI} Admin: Player Registered`)
               .addFields(...logFields)
               .setTimestamp(),
           ],

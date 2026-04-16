@@ -8,7 +8,7 @@ import {
 } from 'discord.js';
 import type { Interaction, ButtonInteraction } from 'discord.js';
 import type { BotClient } from '../index.js';
-import { buildErrorEmbed, EMBED_COLORS } from '../utils/formatters.js';
+import { buildErrorEmbed, EMBED_COLORS, CAIN_EMOJI } from '../utils/formatters.js';
 import { prisma } from '../db/client.js';
 import {
   clearActiveMatch,
@@ -132,7 +132,7 @@ async function handleCancelMatch(interaction: ButtonInteraction, payload: string
         embeds: [
           new EmbedBuilder()
             .setColor(EMBED_COLORS.warning)
-            .setTitle('Match Cancelled — Both Players Re-queued')
+            .setTitle(`${CAIN_EMOJI} Match Cancelled — Both Players Re-queued`)
             .setDescription(
               `<@${userId}> chose to re-queue. Both <@${p1Id}> and <@${p2Id}> have been returned to the queue.`
             )
@@ -146,7 +146,7 @@ async function handleCancelMatch(interaction: ButtonInteraction, payload: string
       embeds: [
         new EmbedBuilder()
           .setColor(EMBED_COLORS.warning)
-          .setTitle('Re-queued')
+          .setTitle(`${CAIN_EMOJI} Re-queued`)
           .setDescription('Both players have been returned to the queue.'),
       ],
     });
@@ -249,7 +249,7 @@ async function handleOverrideBanned(interaction: ButtonInteraction, payload: str
       embeds: [
         new EmbedBuilder()
           .setColor(Colors.Gold)
-          .setTitle('Override Applied')
+          .setTitle(`${CAIN_EMOJI} Override Applied`)
           .setDescription(`Match #${match.id} created with **${selected.build1} vs ${selected.build2}**.`),
       ],
     });
@@ -336,7 +336,7 @@ async function handleMirrorAccept(interaction: ButtonInteraction, nonce: string)
       embeds: [
         new EmbedBuilder()
           .setColor(Colors.Green)
-          .setTitle('Mirror Match Accepted!')
+          .setTitle(`${CAIN_EMOJI} Mirror Match Accepted!`)
           .setDescription(
             `You've accepted the mirror match against <@${req.requesterId}>.\n\n` +
             `**Build:** ${req.build}` +
@@ -352,7 +352,7 @@ async function handleMirrorAccept(interaction: ButtonInteraction, nonce: string)
         embeds: [
           new EmbedBuilder()
             .setColor(Colors.Gold)
-            .setTitle('Mirror Match — Accepted')
+            .setTitle(`${CAIN_EMOJI} Mirror Match — Accepted`)
             .addFields(
               { name: 'Player 1', value: `<@${req.requesterId}> — ${req.build}`, inline: true },
               { name: 'Player 2', value: `<@${req.opponentId}> — ${req.build}`, inline: true },
@@ -392,7 +392,7 @@ async function handleMirrorDecline(interaction: ButtonInteraction, nonce: string
       embeds: [
         new EmbedBuilder()
           .setColor(EMBED_COLORS.warning)
-          .setTitle('Mirror Request Declined')
+          .setTitle(`${CAIN_EMOJI} Mirror Request Declined`)
           .setDescription('You have declined the mirror match request.'),
       ],
     });

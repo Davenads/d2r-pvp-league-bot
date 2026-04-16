@@ -6,7 +6,7 @@ import {
   TextChannel,
 } from 'discord.js';
 import type { Command } from '../../types/index.js';
-import { buildErrorEmbed } from '../../utils/formatters.js';
+import { buildErrorEmbed, CAIN_EMOJI } from '../../utils/formatters.js';
 import { prisma } from '../../db/client.js';
 import { CHANNELS } from '../../config/channels.js';
 import { config } from '../../config.js';
@@ -84,7 +84,7 @@ export const command: Command = {
 
       const embed = new EmbedBuilder()
         .setColor(autoRemove ? Colors.Red : Colors.Yellow)
-        .setTitle(autoRemove ? 'Warning Issued — Player Auto-Removed' : 'Warning Issued')
+        .setTitle(autoRemove ? `${CAIN_EMOJI} Warning Issued — Player Auto-Removed` : `${CAIN_EMOJI} Warning Issued`)
         .setDescription(
           autoRemove
             ? `<@${target.id}> has received warning **${newWarningCount}/${threshold}** and has been **automatically removed** from the ladder.`

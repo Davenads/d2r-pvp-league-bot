@@ -5,7 +5,7 @@ import {
   Colors,
 } from 'discord.js';
 import type { Command } from '../types/index.js';
-import { buildErrorEmbed } from '../utils/formatters.js';
+import { buildErrorEmbed, CAIN_EMOJI } from '../utils/formatters.js';
 import { prisma } from '../db/client.js';
 
 /** Returns win/loss/pct string, e.g. "5W / 3L (62.5%)" */
@@ -107,7 +107,7 @@ export const command: Command = {
 
       const embed = new EmbedBuilder()
         .setColor(player.status === 'REMOVED' ? Colors.Red : Colors.Gold)
-        .setTitle(`${target.username} — ${season.name}`)
+        .setTitle(`${CAIN_EMOJI} ${target.username} — ${season.name}`)
         .setThumbnail(target.displayAvatarURL())
         .addFields(
           {

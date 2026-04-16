@@ -16,7 +16,7 @@ import {
   ChannelType,
 } from 'discord.js';
 import type { Command } from '../../types/index.js';
-import { buildErrorEmbed, EMBED_COLORS } from '../../utils/formatters.js';
+import { buildErrorEmbed, EMBED_COLORS, CAIN_EMOJI } from '../../utils/formatters.js';
 import { prisma } from '../../db/client.js';
 import {
   findMirrorRequestByOpponent,
@@ -119,7 +119,7 @@ export const command: Command = {
           embeds: [
             new EmbedBuilder()
               .setColor(Colors.Gold)
-              .setTitle('Mirror Match — Accepted (mod)')
+              .setTitle(`${CAIN_EMOJI} Mirror Match — Accepted (mod)`)
               .addFields(
                 { name: 'Player 1', value: `<@${req.requesterId}> — ${req.build}`, inline: true },
                 { name: 'Player 2', value: `<@${req.opponentId}> — ${req.build}`, inline: true },
@@ -136,7 +136,7 @@ export const command: Command = {
           embeds: [
             new EmbedBuilder()
               .setColor(EMBED_COLORS.warning)
-              .setTitle('Admin: Mirror Request Accepted on Behalf of Player')
+              .setTitle(`${CAIN_EMOJI} Admin: Mirror Request Accepted on Behalf of Player`)
               .addFields(
                 { name: 'Accepted By', value: `<@${interaction.user.id}>`, inline: true },
                 { name: 'Requester', value: `<@${req.requesterId}>`, inline: true },
@@ -153,7 +153,7 @@ export const command: Command = {
         embeds: [
           new EmbedBuilder()
             .setColor(Colors.Green)
-            .setTitle('Mirror Request Accepted')
+            .setTitle(`${CAIN_EMOJI} Mirror Request Accepted`)
             .setDescription(
               `Mirror match #${matchId} created.\n\n` +
               `**Requester:** <@${req.requesterId}>\n` +

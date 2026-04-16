@@ -10,7 +10,7 @@ import {
   TextChannel,
 } from 'discord.js';
 import type { Command } from '../types/index.js';
-import { buildErrorEmbed, EMBED_COLORS } from '../utils/formatters.js';
+import { buildErrorEmbed, EMBED_COLORS, CAIN_EMOJI } from '../utils/formatters.js';
 import { getBuildChoices, resolveBuild } from '../utils/buildList.js';
 import { prisma } from '../db/client.js';
 import { getPlayerState, createMirrorRequest } from '../services/queue.js';
@@ -144,7 +144,7 @@ export const command: Command = {
       // Build the consent message
       const requestEmbed = new EmbedBuilder()
         .setColor(Colors.Blue)
-        .setTitle('Mirror Match Request')
+        .setTitle(`${CAIN_EMOJI} Mirror Match Request`)
         .setDescription(
           `<@${requesterId}> has challenged <@${opponent.id}> to a mirror match!\n\n` +
           `**Build:** ${build} vs ${build}\n\n` +
@@ -177,7 +177,7 @@ export const command: Command = {
         embeds: [
           new EmbedBuilder()
             .setColor(EMBED_COLORS.info)
-            .setTitle('Mirror Request Sent')
+            .setTitle(`${CAIN_EMOJI} Mirror Request Sent`)
             .setDescription(
               `Your mirror match request has been sent to <@${opponent.id}> in <#${CHANNELS.queue}>.\n\n` +
               `**Build:** ${build}\n\nWaiting for their response (5 min timeout).`
