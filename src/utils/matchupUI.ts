@@ -13,6 +13,7 @@ import {
 import type { ThreadChannel } from 'discord.js';
 import type { BuildPairing } from '../types/index.js';
 import { EMBED_COLORS } from './formatters.js';
+import { getClassEmoji } from './buildList.js';
 
 /**
  * Post the "all matchups are banned" embed into a thread.
@@ -79,6 +80,13 @@ export async function postMatchAnnouncementEmbed(
   matchId: number,
   isTournament = false,
 ): Promise<void> {
+  const [p1User, p2User] = await Promise.all([
+    thread.client.users.fetch(p1Id).catch(() => null),
+    thread.client.users.fetch(p2Id).catch(() => null),
+  ]);
+  const p1Name = p1User?.displayName ?? `<@${p1Id}>`;
+  const p2Name = p2User?.displayName ?? `<@${p2Id}>`;
+
   const matchTypeLine = matchup.type === 'DEATHMATCH'
     ? 'Match type: **Deathmatch (FT2)**'
     : 'Match type: **Standard (FT4)**';
@@ -91,12 +99,12 @@ export async function postMatchAnnouncementEmbed(
     .setColor(Colors.Gold)
     .setTitle(`Match #${matchId} Assigned`)
     .setDescription(
-      `The bot has randomly selected your matchup. Both players must play these builds.\n\n` +
+      `The bot has randomly selected your matchup. Both players must play these builds.` +
       tournamentNote,
     )
     .addFields(
-      { name: `<@${p1Id}> plays`, value: matchup.build1, inline: true },
-      { name: `<@${p2Id}> plays`, value: matchup.build2, inline: true },
+      { name: `${p1Name} plays`, value: `${getClassEmoji(matchup.build1)} ${matchup.build1}`, inline: true },
+      { name: `${p2Name} plays`, value: `${getClassEmoji(matchup.build2)} ${matchup.build2}`, inline: true },
       { name: 'Rules', value: matchTypeLine, inline: false },
       {
         name: 'When finished',

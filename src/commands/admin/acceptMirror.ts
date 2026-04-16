@@ -113,7 +113,6 @@ export const command: Command = {
         }
       }
 
-      // Post to #1v1-queue
       const queueChannel = interaction.client.channels.cache.get(CHANNELS.queue) as TextChannel | undefined;
       if (queueChannel) {
         await queueChannel.send({
@@ -131,7 +130,6 @@ export const command: Command = {
         });
       }
 
-      // Log to mod-ops
       const modLogsChannel = interaction.client.channels.cache.get(CHANNELS.modLogs) as TextChannel | undefined;
       if (modLogsChannel) {
         await modLogsChannel.send({

@@ -394,14 +394,16 @@ export async function findMirrorRequestByOpponent(
   opponentId: string,
 ): Promise<{ nonce: string; req: MirrorRequest } | null> {
   const redis = getRedisClient();
-  const keys = await redis.keys('d2r:mirror:req:*');
-  for (const key of keys) {
-    const raw = await redis.get(key);
+  const prefix = CacheKeys.mirrorRequest('');
+  const keys = await redis.keys(`${prefix}*`);
+  if (keys.length === 0) return null;
+  const values = await redis.mget(...keys);
+  for (let i = 0; i < keys.length; i++) {
+    const raw = values[i];
     if (!raw) continue;
     const req = JSON.parse(raw) as MirrorRequest;
     if (req.opponentId === opponentId) {
-      const nonce = key.replace('d2r:mirror:req:', '');
-      return { nonce, req };
+      return { nonce: keys[i].slice(prefix.length), req };
     }
   }
   return null;
