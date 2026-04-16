@@ -19,11 +19,11 @@ import { updateLeaderboardEmbed } from '../services/leaderboardEmbed.js';
 export const command: Command = {
   data: new SlashCommandBuilder()
     .setName('report-win')
-    .setDescription('Report a match result (winner initiates — recorded immediately)')
+    .setDescription('Report the result of your match — either player can report')
     .addUserOption((opt) =>
       opt
-        .setName('opponent')
-        .setDescription('The player you defeated')
+        .setName('winner')
+        .setDescription('The player who won the match')
         .setRequired(true)
     )
     .addBooleanOption((opt) =>
@@ -35,17 +35,12 @@ export const command: Command = {
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     await interaction.deferReply({ ephemeral: true });
 
-    const opponent = interaction.options.getUser('opponent', true);
+    const winner = interaction.options.getUser('winner', true);
     const isTestRule = interaction.options.getBoolean('test_rule') ?? false;
     const reporterDiscordId = interaction.user.id;
 
-    if (opponent.id === reporterDiscordId) {
-      await interaction.editReply({ embeds: [buildErrorEmbed("You can't report a win against yourself.")] });
-      return;
-    }
-
     try {
-      // Verify reporter has an active match
+      // Verify reporter is in an active match
       const activeMatch = await getActiveMatch(reporterDiscordId);
       if (!activeMatch) {
         await interaction.editReply({
@@ -54,15 +49,12 @@ export const command: Command = {
         return;
       }
 
-      // Verify the specified opponent matches the active match
-      const opponentId = activeMatch.player1DiscordId === reporterDiscordId
-        ? activeMatch.player2DiscordId
-        : activeMatch.player1DiscordId;
-
-      if (opponent.id !== opponentId) {
+      // Verify the named winner is one of the two participants
+      const { player1DiscordId, player2DiscordId } = activeMatch;
+      if (winner.id !== player1DiscordId && winner.id !== player2DiscordId) {
         await interaction.editReply({
           embeds: [buildErrorEmbed(
-            `Your active match is against <@${opponentId}>, not <@${opponent.id}>.\n\nIf this is wrong, contact a mod.`
+            `<@${winner.id}> is not a participant in your active match.\n\nYour match is between <@${player1DiscordId}> and <@${player2DiscordId}>.`
           )],
         });
         return;
@@ -89,9 +81,9 @@ export const command: Command = {
         return;
       }
 
-      // Determine winner / loser player records
-      const winnerPlayer = match.player1.discordId === reporterDiscordId ? match.player1 : match.player2;
-      const loserPlayer  = match.player1.discordId === reporterDiscordId ? match.player2 : match.player1;
+      // Determine winner / loser player records from the named winner
+      const winnerPlayer = match.player1.discordId === winner.id ? match.player1 : match.player2;
+      const loserPlayer  = match.player1.discordId === winner.id ? match.player2 : match.player1;
 
       // test_rule can only override STANDARD matches — DEATHMATCH and TOURNAMENT are fixed at creation.
       const finalType = (isTestRule && match.type === 'STANDARD') ? 'TEST_RULE' : match.type;
@@ -143,7 +135,7 @@ export const command: Command = {
             .setColor(Colors.Green)
             .setTitle('Result Recorded')
             .setDescription(
-              `Your win against <@${loserPlayer.discordId}> has been recorded.\n\n` +
+              `**<@${winnerPlayer.discordId}>** defeated **<@${loserPlayer.discordId}>**.\n\n` +
               `**Match type:** ${typeLabel}\n` +
               `**Match #:** ${match.id}`
             )
