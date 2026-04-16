@@ -26,11 +26,12 @@ const LEADERBOARD_MSG_TTL = 30 * 24 * 60 * 60; // 30 days in seconds
 function parseLadderRows(rows: string[][]): LadderEntry[] {
   if (rows.length < 2) return [];
   const headers = rows[0].map((h) => h.trim().toLowerCase());
+  console.log('[Leaderboard] Sheet headers:', headers);
   const idx = (name: string) => headers.indexOf(name);
 
   return rows
     .slice(1)
-    .filter((row) => row[idx('status')]?.trim() === 'Available' && (row[idx('discord_id')] || '').trim())
+    .filter((row) => row[idx('status')]?.trim() === 'Available' && (row[idx('discord_username')] || '').trim())
     .map((row) => ({
       rank:           parseInt(row[idx('rank')] || '0', 10),
       discordUsername: row[idx('discord_username')] ?? '',
@@ -114,6 +115,26 @@ export async function updateLeaderboardEmbed(client: Client): Promise<void> {
       } catch {
         // Message deleted or inaccessible — fall through to post a new one
         console.warn('[Leaderboard] Stored message not found, posting new embed.');
+      }
+    }
+
+    // Before posting, scan the channel for an existing bot embed to avoid duplicates.
+    // This recovers from Redis key loss (cache flush, first boot, etc.).
+    const botId = client.user?.id;
+    if (botId) {
+      try {
+        const recent = await channel.messages.fetch({ limit: 20 });
+        const found = recent.find(
+          (m) => m.author.id === botId && m.embeds.some((e) => e.title?.includes('League Standings'))
+        );
+        if (found) {
+          await found.edit({ embeds: [embed] });
+          await cacheSet(CacheKeys.leaderboardMsgId(), found.id, LEADERBOARD_MSG_TTL);
+          console.log('[Leaderboard] Recovered existing embed via channel scan (msg:', found.id, ')');
+          return;
+        }
+      } catch (scanErr) {
+        console.warn('[Leaderboard] Channel scan failed, posting new embed:', scanErr);
       }
     }
 
