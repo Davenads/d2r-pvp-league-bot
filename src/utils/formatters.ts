@@ -1,6 +1,8 @@
 import { EmbedBuilder, Colors } from 'discord.js';
 import type { MatchupRules, LadderEntry } from '../types/index.js';
-import { getClassEmoji } from './classEmojis.js';
+import { getClassEmoji, CAIN_EMOJI } from './classEmojis.js';
+
+export { getClassEmoji, CAIN_EMOJI } from './classEmojis.js';
 
 // ── Colour palette ───────────────────────────────────────────────────────────
 
@@ -23,7 +25,7 @@ export function buildBannedMatchupEmbed(buildA: string, buildB: string): EmbedBu
   const labelB = emojiB ? `${emojiB} ${buildB}` : buildB;
   return new EmbedBuilder()
     .setColor(EMBED_COLORS.banned)
-    .setTitle('Banned Matchup')
+    .setTitle(`${CAIN_EMOJI} Banned Matchup`)
     .setDescription(
       `**${labelA}** vs **${labelB}** is a **banned matchup** and cannot be played in the regular season.\n\nCheck \`/deathmatch\` for alternative opponents.`
     );
@@ -37,7 +39,7 @@ export function buildMatchupEmbed(rules: MatchupRules): EmbedBuilder {
 
   const embed = new EmbedBuilder()
     .setColor(EMBED_COLORS.rules)
-    .setTitle(`${labelA}  vs  ${labelB}`)
+    .setTitle(`${CAIN_EMOJI} ${labelA}  vs  ${labelB}`)
     .setFooter({ text: 'Rules sourced from D2R 1v1 League ruleset. Use /rules for general rules.' });
 
   embed.addFields({
@@ -64,7 +66,7 @@ export function buildLadderEmbed(entries: LadderEntry[], page: number, totalPage
 
   return new EmbedBuilder()
     .setColor(EMBED_COLORS.ladder)
-    .setTitle('D2R 1v1 League Standings')
+    .setTitle(`${CAIN_EMOJI} D2R 1v1 League Standings`)
     .setDescription(rows || '*No ladder entries found.*')
     .setFooter({ text: `Page ${page} of ${totalPages}` });
 }
@@ -84,7 +86,7 @@ export function buildRegistrationEmbed(
     .join('\n');
   return new EmbedBuilder()
     .setColor(EMBED_COLORS.success)
-    .setTitle('New Player Registered')
+    .setTitle(`${CAIN_EMOJI} New Player Registered`)
     .setDescription(`<@${discordId}> has joined the D2R 1v1 League!`)
     .addFields({ name: 'Registered Builds', value: buildList, inline: false })
     .setFooter({ text: `Discord: ${discordUsername}` })

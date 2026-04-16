@@ -2,6 +2,9 @@
  * Discord application emoji strings for each D2R character class.
  * Format: <:emojiname:emojiid>
  */
+
+export const CAIN_EMOJI = '<:Cain:1494351291709784074>';
+
 export const CLASS_EMOJIS: Record<string, string> = {
   Amazon:      '<:amazonemoji:1491565082176655540>',
   Assassin:    '<:assassinemoji:1491565077181108315>',

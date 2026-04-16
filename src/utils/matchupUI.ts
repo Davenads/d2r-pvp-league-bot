@@ -13,7 +13,7 @@ import {
 import type { ThreadChannel } from 'discord.js';
 import type { BuildPairing } from '../types/index.js';
 import { EMBED_COLORS } from './formatters.js';
-import { getClassEmoji } from './classEmojis.js';
+import { getClassEmoji, CAIN_EMOJI } from './classEmojis.js';
 
 /**
  * Post the "all matchups are banned" embed into a thread.
@@ -34,7 +34,7 @@ export async function postAllBannedEmbed(
 ): Promise<void> {
   const embed = new EmbedBuilder()
     .setColor(EMBED_COLORS.banned)
-    .setTitle('All Matchups Banned')
+    .setTitle(`${CAIN_EMOJI} All Matchups Banned`)
     .setDescription(
       `<@${p1Id}> vs <@${p2Id}>\n\n` +
       'Every possible build pairing between these two players is on the banned matchup list.\n\n' +
@@ -97,7 +97,7 @@ export async function postMatchAnnouncementEmbed(
 
   const embed = new EmbedBuilder()
     .setColor(Colors.Gold)
-    .setTitle(`Match #${matchId} Assigned`)
+    .setTitle(`${CAIN_EMOJI} Match #${matchId} Assigned`)
     .setDescription(
       `The bot has randomly selected your matchup. Both players must play these builds.` +
       tournamentNote,

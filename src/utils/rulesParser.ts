@@ -1,5 +1,5 @@
 import { EmbedBuilder } from 'discord.js';
-import { CLASS_EMOJIS, ALL_CLASS_EMOJIS } from './classEmojis.js';
+import { CLASS_EMOJIS, ALL_CLASS_EMOJIS, CAIN_EMOJI } from './classEmojis.js';
 import { EMBED_COLORS } from './formatters.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -126,11 +126,11 @@ export function buildRulesEmbeds(
   variant: 'rules' | 'test-rules',
 ): EmbedBuilder[] {
   const mainTitle = variant === 'rules'
-    ? 'D2R 1v1 League — Official Rules'
-    : 'D2R 1v1 League — Test Rules';
+    ? `${CAIN_EMOJI} D2R 1v1 League — Official Rules`
+    : `${CAIN_EMOJI} D2R 1v1 League — Test Rules`;
   const contTitle = variant === 'rules'
-    ? 'Rules (continued)'
-    : 'Test Rules (continued)';
+    ? `${CAIN_EMOJI} Rules (continued)`
+    : `${CAIN_EMOJI} Test Rules (continued)`;
   const footerText = 'Use /matchup <build> <build> for matchup-specific rules.';
   const preamble = `${ALL_CLASS_EMOJIS}\n\n`;
 
