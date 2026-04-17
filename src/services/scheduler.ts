@@ -44,7 +44,10 @@ export function startScheduler(client: Client): void {
   setTimeout(() => runWarningEscalation(client), 32 * 60 * 1000);
   setInterval(() => runWarningEscalation(client), FOUR_HOURS_MS);
 
-  // Refresh the leaderboard embed every hour (covers manual sheet edits between matches)
+  // Refresh the leaderboard embed shortly after boot, then every hour
+  setTimeout(() => updateLeaderboardEmbed(client).catch((e) =>
+    console.error('[Scheduler] Leaderboard boot refresh failed:', e)
+  ), 30 * 1000);
   setInterval(() => updateLeaderboardEmbed(client).catch((e) =>
     console.error('[Scheduler] Leaderboard refresh failed:', e)
   ), ONE_HOUR_MS);
