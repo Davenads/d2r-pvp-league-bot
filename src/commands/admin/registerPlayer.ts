@@ -12,7 +12,7 @@ import { buildErrorEmbed, buildRegistrationEmbed, CAIN_EMOJI } from '../../utils
 import { getClassEmoji } from '../../utils/classEmojis.js';
 import { prisma } from '../../db/client.js';
 import { CHANNELS } from '../../config/channels.js';
-import { addPlayerToLadder, reactivatePlayerOnLadder } from '../../services/ladder.js';
+import { addPlayerToLadder, reactivatePlayerOnLadder, resetPlayerOnLadder } from '../../services/ladder.js';
 import { assertModRole } from '../../utils/modGuard.js';
 
 export const command: Command = {
@@ -124,22 +124,45 @@ export const command: Command = {
       }
 
       if (existing && existing.status === 'REMOVED') {
-        await prisma.player.update({
-          where: { id: existing.id },
-          data: {
-            discordUsername: target.username,
-            build1: builds[0],
-            build2: builds[1],
-            build3: builds[2] ?? null,
-            build4: builds[3] ?? null,
-            build5: builds[4] ?? null,
-            status: 'ACTIVE',
-            warnings: 0,
-            registeredAt: new Date(),
-            lastMatchAt: null,
-          },
-        });
-        await reactivatePlayerOnLadder(target.id, target.username, builds);
+        const GRACE_MS = 24 * 60 * 60 * 1000;
+        const withinGrace = existing.removedAt !== null &&
+          (Date.now() - existing.removedAt.getTime()) < GRACE_MS;
+
+        if (withinGrace) {
+          await prisma.player.update({
+            where: { id: existing.id },
+            data: {
+              discordUsername: target.username,
+              build1: builds[0],
+              build2: builds[1],
+              build3: builds[2] ?? null,
+              build4: builds[3] ?? null,
+              build5: builds[4] ?? null,
+              status: 'ACTIVE',
+              warnings: 0,
+              removedAt: null,
+            },
+          });
+          await reactivatePlayerOnLadder(target.id, target.username, builds);
+        } else {
+          await prisma.player.update({
+            where: { id: existing.id },
+            data: {
+              discordUsername: target.username,
+              build1: builds[0],
+              build2: builds[1],
+              build3: builds[2] ?? null,
+              build4: builds[3] ?? null,
+              build5: builds[4] ?? null,
+              status: 'ACTIVE',
+              warnings: 0,
+              registeredAt: new Date(),
+              lastMatchAt: null,
+              removedAt: null,
+            },
+          });
+          await resetPlayerOnLadder(target.id, target.username, builds);
+        }
       } else {
         await prisma.player.create({
           data: {

@@ -56,6 +56,10 @@ export function startScheduler(client: Client): void {
   setTimeout(() => runThreadCleanup(client), 60 * 60 * 1000);
   setInterval(() => runThreadCleanup(client), FOUR_HOURS_MS);
 
+  // Run warning decay every 4 hours (offset by 90 minutes)
+  setTimeout(() => runWarningDecay(client), 90 * 60 * 1000);
+  setInterval(() => runWarningDecay(client), FOUR_HOURS_MS);
+
   console.log('[Scheduler] Jobs scheduled.');
 }
 
@@ -167,7 +171,7 @@ async function runWarningEscalation(client: Client): Promise<void> {
           where: { id: player.id },
           data: {
             warnings: newWarningCount,
-            ...(autoRemove ? { status: 'REMOVED' } : {}),
+            ...(autoRemove ? { status: 'REMOVED', removedAt: new Date() } : {}),
           },
         }),
       ]);
@@ -219,6 +223,82 @@ async function runWarningEscalation(client: Client): Promise<void> {
     console.log(`[Scheduler] Warning escalation: ${warningsIssued} warning(s) issued.`);
   } catch (err) {
     console.error('[Scheduler] Warning escalation error:', err);
+  }
+}
+
+// ── Job 3: Warning decay ──────────────────────────────────────────────────────
+
+/**
+ * Resets warnings to 0 for any ACTIVE player who has had a confirmed match on each
+ * of the last 3 consecutive calendar days (UTC). Signals consistent re-engagement.
+ */
+async function runWarningDecay(client: Client): Promise<void> {
+  console.log('[Scheduler] Running warning decay check...');
+
+  try {
+    const season = await prisma.season.findFirst({ where: { active: true } });
+    if (!season) return;
+
+    const playersWithWarnings = await prisma.player.findMany({
+      where: { seasonId: season.id, status: 'ACTIVE', warnings: { gt: 0 } },
+      select: { id: true, discordId: true, warnings: true },
+    });
+
+    if (playersWithWarnings.length === 0) {
+      console.log('[Scheduler] Warning decay: no players with warnings.');
+      return;
+    }
+
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+    let decayed = 0;
+
+    for (const player of playersWithWarnings) {
+      const recentMatches = await prisma.match.findMany({
+        where: {
+          OR: [{ player1Id: player.id }, { player2Id: player.id }],
+          status: 'CONFIRMED',
+          confirmedAt: { gte: threeDaysAgo },
+        },
+        select: { confirmedAt: true },
+      });
+
+      // Collect distinct UTC calendar days
+      const days = new Set(
+        recentMatches
+          .filter((m): m is typeof m & { confirmedAt: Date } => m.confirmedAt !== null)
+          .map((m) => m.confirmedAt.toISOString().slice(0, 10))
+      );
+
+      // 3 distinct days in a 3-day window must be consecutive
+      if (days.size < 3) continue;
+
+      await prisma.player.update({
+        where: { id: player.id },
+        data: { warnings: 0 },
+      });
+      decayed++;
+
+      const logChannel = client.channels.cache.get(CHANNELS.modLogs) as TextChannel | undefined;
+      if (logChannel) {
+        await logChannel.send({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(Colors.Green)
+              .setTitle('Warnings Cleared (Activity Decay)')
+              .setDescription(
+                `<@${player.discordId}> played matches on 3 consecutive days — ` +
+                `${player.warnings} warning(s) cleared automatically.`
+              )
+              .setFooter({ text: 'Cleared by system scheduler' })
+              .setTimestamp(),
+          ],
+        });
+      }
+    }
+
+    console.log(`[Scheduler] Warning decay: ${decayed} player(s) had warnings cleared.`);
+  } catch (err) {
+    console.error('[Scheduler] Warning decay error:', err);
   }
 }
 

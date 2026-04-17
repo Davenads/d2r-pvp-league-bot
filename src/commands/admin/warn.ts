@@ -77,7 +77,7 @@ export const command: Command = {
           where: { id: player.id },
           data: {
             warnings: newWarningCount,
-            ...(autoRemove ? { status: 'REMOVED' } : {}),
+            ...(autoRemove ? { status: 'REMOVED', removedAt: new Date() } : {}),
           },
         }),
       ]);
@@ -102,6 +102,22 @@ export const command: Command = {
       const logChannel = interaction.client.channels.cache.get(CHANNELS.modLogs) as TextChannel | undefined;
       if (logChannel) {
         await logChannel.send({ embeds: [embed] });
+      }
+
+      // Notify the player in #1v1-queue (mirrors auto-warning behavior)
+      const queueChannel = interaction.client.channels.cache.get(CHANNELS.queue) as TextChannel | undefined;
+      if (queueChannel) {
+        const playerEmbed = new EmbedBuilder()
+          .setColor(autoRemove ? Colors.Red : Colors.Yellow)
+          .setTitle(autoRemove ? 'Removed from Ladder' : `Warning Issued (${newWarningCount}/${threshold})`)
+          .setDescription(
+            autoRemove
+              ? `<@${target.id}>, you have been removed from the ladder. Contact a mod if you believe this is in error.`
+              : `<@${target.id}>, you have received a warning (${newWarningCount}/${threshold}).` +
+                (reason ? `\n**Reason:** ${reason}` : '')
+          )
+          .setTimestamp();
+        await queueChannel.send({ content: `<@${target.id}>`, embeds: [playerEmbed] });
       }
     } catch (err) {
       console.error('[/admin-warn]', err);

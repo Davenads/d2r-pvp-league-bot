@@ -58,6 +58,8 @@ model Player {
   registeredAt    DateTime     @default(now())
   lastMatchAt     DateTime?             // updated on every confirmed match result
 
+  removedAt       DateTime?             // set when status transitions to REMOVED; used for 24hr grace period
+
   seasonId        Int
   season          Season       @relation(fields: [seasonId], references: [id])
 

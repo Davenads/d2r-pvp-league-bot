@@ -62,7 +62,7 @@ export const command: Command = {
 
       await prisma.player.update({
         where: { id: player.id },
-        data: { status: 'REMOVED' },
+        data: { status: 'REMOVED', removedAt: new Date() },
       });
 
       // Mirror status to the Ladder sheet

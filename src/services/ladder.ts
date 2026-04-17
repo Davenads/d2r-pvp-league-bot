@@ -216,6 +216,50 @@ export async function reactivatePlayerOnLadder(
 }
 
 /**
+ * Resets all stat columns for an existing player row to zero (fresh-start re-registration).
+ * Updates builds, username, and status; zeros W/L/Points/TR/DM columns; clears Last_Match.
+ */
+export async function resetPlayerOnLadder(
+  discordId: string,
+  discordUsername: string,
+  builds: string[],
+): Promise<void> {
+  const sheets = getWriteClient();
+  const rows = await fetchLadderRaw();
+  const sheetRow = findPlayerRow(rows, discordId);
+
+  if (!sheetRow) {
+    console.warn(`[Ladder] resetPlayerOnLadder: row not found for ${discordId}, appending fresh row`);
+    await addPlayerToLadder(discordId, discordUsername, builds);
+    return;
+  }
+
+  const updates: sheets_v4.Schema$ValueRange[] = [
+    { range: `${LADDER_TAB}!B${sheetRow}`, values: [[discordUsername]] },
+    { range: `${LADDER_TAB}!D${sheetRow}`, values: [[builds[0] ? abbreviateBuild(builds[0]) : '']] },
+    { range: `${LADDER_TAB}!E${sheetRow}`, values: [[builds[1] ? abbreviateBuild(builds[1]) : '']] },
+    { range: `${LADDER_TAB}!F${sheetRow}`, values: [[builds[2] ? abbreviateBuild(builds[2]) : '']] },
+    { range: `${LADDER_TAB}!G${sheetRow}`, values: [[builds[3] ? abbreviateBuild(builds[3]) : '']] },
+    { range: `${LADDER_TAB}!H${sheetRow}`, values: [[builds[4] ? abbreviateBuild(builds[4]) : '']] },
+    { range: `${LADDER_TAB}!${colLetter(COL.wins)}${sheetRow}`,     values: [[0]] },
+    { range: `${LADDER_TAB}!${colLetter(COL.losses)}${sheetRow}`,   values: [[0]] },
+    { range: `${LADDER_TAB}!${colLetter(COL.points)}${sheetRow}`,   values: [[0]] },
+    { range: `${LADDER_TAB}!${colLetter(COL.trWins)}${sheetRow}`,   values: [[0]] },
+    { range: `${LADDER_TAB}!${colLetter(COL.trLosses)}${sheetRow}`, values: [[0]] },
+    { range: `${LADDER_TAB}!${colLetter(COL.dmWins)}${sheetRow}`,   values: [[0]] },
+    { range: `${LADDER_TAB}!${colLetter(COL.dmLosses)}${sheetRow}`, values: [[0]] },
+    { range: `${LADDER_TAB}!${colLetter(COL.lastMatch)}${sheetRow}`, values: [['']] },
+    { range: `${LADDER_TAB}!${colLetter(COL.status)}${sheetRow}`,   values: [['Available']] },
+  ];
+
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: config.google.sheetId,
+    requestBody: { valueInputOption: 'USER_ENTERED', data: updates },
+  });
+  console.log(`[Ladder] resetPlayerOnLadder: reset sheet row ${sheetRow} for ${discordId} (${discordUsername})`);
+}
+
+/**
  * Updates the Status column (O) for a player row in the Ladder sheet.
  * Used to mark a player as "Removed" without deleting their row.
  * No-ops silently if the player is not found in the sheet.
