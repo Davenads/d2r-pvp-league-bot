@@ -16,7 +16,7 @@
  */
 
 import type { Client, TextChannel } from 'discord.js';
-import { EmbedBuilder, Colors } from 'discord.js';
+import { EmbedBuilder, Colors, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { prisma } from '../db/client.js';
 import { getForcedMatch, setForcedMatch, clearForcedMatch } from './queue.js';
 import { updateLeaderboardEmbed } from './leaderboardEmbed.js';
@@ -108,6 +108,12 @@ async function runCadenceCheck(client: Client): Promise<void> {
 
       // Ping them in #1v1-queue
       if (queueChannel) {
+        const queueRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setCustomId('queue_join')
+            .setLabel('⚔️ Join Queue')
+            .setStyle(ButtonStyle.Primary)
+        );
         await queueChannel.send({
           content: `<@${player.discordId}>`,
           embeds: [
@@ -116,11 +122,12 @@ async function runCadenceCheck(client: Client): Promise<void> {
               .setTitle('Forced Match Assignment')
               .setDescription(
                 `<@${player.discordId}>, it's been more than **${config.league.matchCadenceDays} days** since your last match.\n\n` +
-                `You are required to play. Run \`/queue\` to enter the queue — this will acknowledge your assignment.\n\n` +
+                `You are required to play. Click the button below or run \`/queue\` to enter the queue — this will acknowledge your assignment.\n\n` +
                 `Failing to respond within **24 hours** will result in a warning.`
               )
               .setTimestamp(),
           ],
+          components: [queueRow],
         });
       }
     }
