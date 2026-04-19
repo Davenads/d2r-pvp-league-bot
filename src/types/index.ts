@@ -82,6 +82,8 @@ export const CacheKeys = {
   forcedMatch: (discordId: string) => `d2r:forced:${discordId}`,
   // Leaderboard — stores the Discord message ID of the pinned standings embed
   leaderboardMsgId: () => 'd2r:leaderboard:msgid',
+  // Queue button — stores the Discord message ID of the persistent Join Queue embed
+  queueBtnMsgId: () => 'd2r:queue:btn:msgid',
 } as const;
 
 // ── Mirror request type ───────────────────────────────────────────────────────

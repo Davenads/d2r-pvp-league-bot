@@ -9,6 +9,7 @@ import {
 import type { Interaction, ButtonInteraction } from 'discord.js';
 import type { BotClient } from '../index.js';
 import { buildErrorEmbed, EMBED_COLORS, CAIN_EMOJI } from '../utils/formatters.js';
+import { executeQueueJoin } from '../utils/queueJoin.js';
 import { prisma } from '../db/client.js';
 import {
   clearActiveMatch,
@@ -74,6 +75,12 @@ export async function execute(interaction: Interaction): Promise<void> {
     const colonIdx = interaction.customId.indexOf(':');
     const action = colonIdx === -1 ? interaction.customId : interaction.customId.slice(0, colonIdx);
     const payload = colonIdx === -1 ? '' : interaction.customId.slice(colonIdx + 1);
+
+    if (action === 'queue_join') {
+      await interaction.deferReply({ ephemeral: true });
+      await executeQueueJoin(interaction);
+      return;
+    }
 
     if (action === 'mirror_accept') {
       await handleMirrorAccept(interaction, payload);
