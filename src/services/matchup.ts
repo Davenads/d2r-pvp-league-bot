@@ -55,8 +55,13 @@ export async function getMatchupRules(buildA: string, buildB: string): Promise<M
     return null;
   }
 
-  const rulesForA = matrix.slice(1)[rowIndexA][colIndexB + 1]?.trim() ?? '';
-  const rulesForB = matrix.slice(1)[rowIndexB][colIndexA + 1]?.trim() ?? '';
+  // Read both symmetric cells. Some matchups (e.g. Amazon vs Amazon) only
+  // populate one side of the matrix, so fall back to the transposed cell when
+  // the primary cell is empty.
+  const cellAB = matrix.slice(1)[rowIndexA][colIndexB + 1]?.trim() ?? '';
+  const cellBA = matrix.slice(1)[rowIndexB][colIndexA + 1]?.trim() ?? '';
+  const rulesForA = cellAB || cellBA;
+  const rulesForB = cellBA || cellAB;
   const isBanned = await isMatchupBanned(buildA, buildB);
 
   const result: MatchupRules = { buildA, buildB, rulesForA, rulesForB, isBanned };
