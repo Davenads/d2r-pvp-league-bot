@@ -28,6 +28,28 @@ async function getBannedSet(): Promise<Set<string>> {
   return new Set(pairs);
 }
 
+/**
+ * Force-fetches the banned matchup list from Sheets, re-populates the cache,
+ * and returns the number of banned pairs loaded. Used by /refresh-cache re-warm.
+ */
+export async function refreshBannedCache(): Promise<number> {
+  const rows = await fetchBannedMatchups();
+  const pairs: string[] = [];
+
+  for (const row of rows.slice(1)) {
+    const [build, ...banned] = row;
+    for (const opponent of banned) {
+      if (opponent?.trim()) {
+        const key = [build.trim(), opponent.trim()].sort().join('::');
+        pairs.push(key);
+      }
+    }
+  }
+
+  await cacheSet(CacheKeys.banned(), pairs, config.cache.ttlRules);
+  return pairs.length;
+}
+
 export async function isMatchupBanned(buildA: string, buildB: string): Promise<boolean> {
   const banned = await getBannedSet();
   const key = [buildA, buildB].sort().join('::');
