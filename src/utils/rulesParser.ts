@@ -73,6 +73,42 @@ function resolveHeader(line: string): HeaderEntry {
   };
 }
 
+// ── URL detection ─────────────────────────────────────────────────────────────
+
+const URL_REGEX = /^https?:\/\/\S+$/;
+
+function isRawUrl(bullet: string): boolean {
+  return URL_REGEX.test(bullet.replace(/^•\s*/, '').trim());
+}
+
+function extractUrl(bullet: string): string {
+  return bullet.replace(/^•\s*/, '').trim();
+}
+
+/**
+ * Post-processing pass on a section's rule array.
+ * When a non-URL bullet is immediately followed by a URL-only bullet,
+ * the pair is merged into a Discord markdown hyperlink: [label](url).
+ */
+function mergeTextUrlPairs(rules: string[]): string[] {
+  const out: string[] = [];
+  let i = 0;
+  while (i < rules.length) {
+    const current = rules[i];
+    const next = rules[i + 1];
+    if (next && !isRawUrl(current) && isRawUrl(next)) {
+      const label = current.replace(/^•\s*/, '').trim();
+      const url = extractUrl(next);
+      out.push(`• [${label}](${url})`);
+      i += 2; // consume both
+    } else {
+      out.push(current);
+      i++;
+    }
+  }
+  return out;
+}
+
 // ── Parsing ───────────────────────────────────────────────────────────────────
 
 /**
@@ -102,7 +138,9 @@ export function parseRulesIntoSections(lines: string[]): Section[] {
   }
 
   if (current !== null && current.rules.length > 0) sections.push(current);
-  return sections;
+
+  // Merge any text+URL pairs into Discord markdown hyperlinks
+  return sections.map((s) => ({ ...s, rules: mergeTextUrlPairs(s.rules) }));
 }
 
 // ── Rendering helpers ─────────────────────────────────────────────────────────
