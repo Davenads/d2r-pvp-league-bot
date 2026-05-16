@@ -1,6 +1,7 @@
 import { EmbedBuilder, Colors } from 'discord.js';
 import type { MatchupRules, LadderEntry } from '../types/index.js';
-import { getClassEmoji, CAIN_EMOJI } from './classEmojis.js';
+import type { ClassRulesEntry } from '../services/content.js';
+import { getClassEmoji, CLASS_EMOJIS, CAIN_EMOJI } from './classEmojis.js';
 
 export { getClassEmoji, CAIN_EMOJI } from './classEmojis.js';
 
@@ -55,6 +56,70 @@ export function buildMatchupEmbed(rules: MatchupRules): EmbedBuilder {
   });
 
   return embed;
+}
+
+// ── Class rules embed ─────────────────────────────────────────────────────────
+
+const CLASS_RULES_SEP = '——————————————————————————————';
+const MAX_CLASS_EMBED_DESC = 4000;
+
+/**
+ * Builds one or two EmbedBuilders for a single class's rules.
+ * Regular rules are shown first; if test rules exist they follow after a
+ * horizontal separator and a TEST RULES header, all within the same embed.
+ * Returns two embeds only if the combined description exceeds Discord's limit.
+ */
+export function buildClassRulesEmbed(
+  className: string,
+  entry: ClassRulesEntry,
+): EmbedBuilder[] {
+  const emoji = CLASS_EMOJIS[className] ?? '';
+  const title = emoji
+    ? `${CAIN_EMOJI} ${emoji} ${className} — Class Rules`
+    : `${CAIN_EMOJI} ${className} — Class Rules`;
+
+  const regularLines = entry.rules.map((r) => `• ${r}`);
+  const testLines = entry.testRules.map((r) => `• ${r}`);
+
+  let description = regularLines.join('\n') || '*No rules listed.*';
+  if (testLines.length > 0) {
+    description += `\n\n${CLASS_RULES_SEP}\n**TEST RULES**\n${testLines.join('\n')}`;
+  }
+
+  if (description.length <= MAX_CLASS_EMBED_DESC) {
+    return [
+      new EmbedBuilder()
+        .setColor(EMBED_COLORS.rules)
+        .setTitle(title)
+        .setDescription(description)
+        .setFooter({ text: 'Use /rules for general league rules.' }),
+    ];
+  }
+
+  // Overflow — split at the separator between regular and test rules if present
+  const sepIdx = description.indexOf(CLASS_RULES_SEP);
+  if (sepIdx !== -1) {
+    return [
+      new EmbedBuilder()
+        .setColor(EMBED_COLORS.rules)
+        .setTitle(title)
+        .setDescription(description.slice(0, sepIdx).trim()),
+      new EmbedBuilder()
+        .setColor(EMBED_COLORS.rules)
+        .setTitle(`${title} (continued)`)
+        .setDescription(description.slice(sepIdx).trim())
+        .setFooter({ text: 'Use /rules for general league rules.' }),
+    ];
+  }
+
+  // Last resort: hard truncate
+  return [
+    new EmbedBuilder()
+      .setColor(EMBED_COLORS.rules)
+      .setTitle(title)
+      .setDescription(description.slice(0, MAX_CLASS_EMBED_DESC))
+      .setFooter({ text: 'Use /rules for general league rules.' }),
+  ];
 }
 
 // ── Ladder embed ─────────────────────────────────────────────────────────────
