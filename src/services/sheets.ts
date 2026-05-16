@@ -7,6 +7,7 @@ export const SHEET_TABS = {
   matchups: 'Matchups',
   banned: 'Banned matchups',
   deathmatches: 'Matchups: Deathmatches',
+  classRules: 'Class Rules',
   rules: '1v1 Rules',
   testRules: 'Test 1v1 Rules',
   questions: 'Questions',
@@ -70,6 +71,14 @@ export async function fetchBannedMatchups(): Promise<string[][]> {
  */
 export async function fetchDeathmatches(): Promise<string[][]> {
   return readRange(SHEET_TABS.deathmatches);
+}
+
+/**
+ * Returns the Class Rules tab as a 2D array.
+ * Row format: col A = class name, col B = multi-line cell (newline-separated rules).
+ */
+export async function fetchClassRules(): Promise<string[][]> {
+  return readRange(SHEET_TABS.classRules);
 }
 
 /**

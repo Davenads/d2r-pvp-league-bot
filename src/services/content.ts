@@ -1,5 +1,5 @@
 import { cacheGet, cacheSet } from './cache.js';
-import { fetchGeneralRules, fetchTestRules, fetchFaq, fetchDeathmatches } from './sheets.js';
+import { fetchGeneralRules, fetchTestRules, fetchFaq, fetchDeathmatches, fetchClassRules } from './sheets.js';
 import { CacheKeys } from '../types/index.js';
 import { config } from '../config.js';
 
@@ -67,6 +67,51 @@ export async function getFaqEntries(): Promise<FaqEntry[]> {
 
   await cacheSet(CacheKeys.faq(), entries, config.cache.ttlRules);
   return entries;
+}
+
+// ── Class Rules ───────────────────────────────────────────────────────────────
+
+export interface ClassRulesEntry {
+  rules: string[];
+  testRules: string[];
+}
+
+/**
+ * Returns a Map of class name → { rules, testRules }.
+ * Source: 'Class Rules' sheet tab.
+ * Row format: col A = class name, col B = multi-line cell (Alt+Enter newlines).
+ * The first line of col B repeats the class name decoratively — it is stripped.
+ * Lines before /^test rule/i = regular rules; lines after = test rules.
+ */
+export async function getClassRules(): Promise<Map<string, ClassRulesEntry>> {
+  const cached = await cacheGet<Record<string, ClassRulesEntry>>(CacheKeys.classRules());
+  if (cached) {
+    return new Map(Object.entries(cached));
+  }
+
+  const rows = await fetchClassRules();
+  const map: Record<string, ClassRulesEntry> = {};
+
+  for (const row of rows.slice(1)) {  // skip header row
+    const className = row[0]?.trim();
+    if (!className) continue;
+
+    const rawCell = row[1]?.trim() ?? '';
+    const lines = rawCell.split('\n').map((l) => l.trim()).filter(Boolean);
+
+    // Strip decorative first line if it repeats the class name
+    const startIdx = lines[0]?.toLowerCase() === className.toLowerCase() ? 1 : 0;
+    const contentLines = lines.slice(startIdx);
+
+    const delimIdx = contentLines.findIndex((l) => /^test rule/i.test(l));
+    const rules = delimIdx === -1 ? contentLines : contentLines.slice(0, delimIdx);
+    const testRules = delimIdx === -1 ? [] : contentLines.slice(delimIdx + 1);
+
+    map[className] = { rules, testRules };
+  }
+
+  await cacheSet(CacheKeys.classRules(), map, config.cache.ttlRules);
+  return new Map(Object.entries(map));
 }
 
 // ── Deathmatches ──────────────────────────────────────────────────────────────

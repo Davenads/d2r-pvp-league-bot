@@ -50,7 +50,7 @@ export interface LadderEntry {
 }
 
 /** Deathmatch alternatives for a given build */
-export interface DeathmatcAlternatives {
+export interface DeathmatchAlternatives {
   build: string;
   alternatives: string[];  // up to 5
 }
@@ -67,6 +67,7 @@ export const CacheKeys = {
   deathmatches: () => 'd2r:deathmatches',
   rulesGeneral: () => 'd2r:rules:general',
   rulesTest: () => 'd2r:rules:test',
+  classRules: () => 'd2r:rules:class',
   faq: () => 'd2r:faq',
   ladder: () => 'd2r:ladder',
   // Queue / match state

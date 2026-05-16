@@ -1,6 +1,6 @@
 import { cacheGet, cacheSet } from './cache.js';
 import { fetchMatchupsMatrix, fetchBannedMatchups, fetchDeathmatches } from './sheets.js';
-import { CacheKeys, type MatchupRules, type DeathmatcAlternatives } from '../types/index.js';
+import { CacheKeys, type MatchupRules, type DeathmatchAlternatives } from '../types/index.js';
 import { config } from '../config.js';
 
 // ── Banned matchups ──────────────────────────────────────────────────────────
@@ -93,9 +93,9 @@ export async function getMatchupRules(buildA: string, buildB: string): Promise<M
 
 // ── Deathmatch alternatives ──────────────────────────────────────────────────
 
-export async function getDeathmatches(build: string): Promise<DeathmatcAlternatives | null> {
+export async function getDeathmatches(build: string): Promise<DeathmatchAlternatives | null> {
   const cacheKey = CacheKeys.deathmatch(build);
-  const cached = await cacheGet<DeathmatcAlternatives>(cacheKey);
+  const cached = await cacheGet<DeathmatchAlternatives>(cacheKey);
   if (cached) return cached;
 
   const rows = await fetchDeathmatches();
@@ -104,7 +104,7 @@ export async function getDeathmatches(build: string): Promise<DeathmatcAlternati
   if (!row) return null;
 
   const alternatives = row.slice(1).map((v) => v?.trim()).filter(Boolean);
-  const result: DeathmatcAlternatives = { build, alternatives };
+  const result: DeathmatchAlternatives = { build, alternatives };
   await cacheSet(cacheKey, result, config.cache.ttlRules);
   return result;
 }
