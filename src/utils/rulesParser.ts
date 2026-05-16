@@ -1,5 +1,5 @@
 import { EmbedBuilder } from 'discord.js';
-import { CLASS_EMOJIS, ALL_CLASS_EMOJIS, CAIN_EMOJI } from './classEmojis.js';
+import { ALL_CLASS_EMOJIS, CAIN_EMOJI } from './classEmojis.js';
 import { EMBED_COLORS } from './formatters.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -24,20 +24,6 @@ const HEADER_MAP: Record<string, HeaderEntry> = {
   'general rules':    { label: 'GENERAL RULES',  emoji: '⚙️' },
   'map rules':        { label: 'MAP RULES',       emoji: '🗺️' },
   'item rules':       { label: 'ITEM RULES',      emoji: '🎯' },
-  'druid':            { label: 'DRUID',            emoji: CLASS_EMOJIS['Druid'] ?? '' },
-  'druid rules':      { label: 'DRUID',            emoji: CLASS_EMOJIS['Druid'] ?? '' },
-  'necromancer':      { label: 'NECROMANCER',      emoji: CLASS_EMOJIS['Necromancer'] ?? '' },
-  'necromancer rules':{ label: 'NECROMANCER',      emoji: CLASS_EMOJIS['Necromancer'] ?? '' },
-  'barbarian':        { label: 'BARBARIAN',        emoji: CLASS_EMOJIS['Barbarian'] ?? '' },
-  'barbarian rules':  { label: 'BARBARIAN',        emoji: CLASS_EMOJIS['Barbarian'] ?? '' },
-  'assassin':         { label: 'ASSASSIN',         emoji: CLASS_EMOJIS['Assassin'] ?? '' },
-  'assassin rules':   { label: 'ASSASSIN',         emoji: CLASS_EMOJIS['Assassin'] ?? '' },
-  'paladin':          { label: 'PALADIN',          emoji: CLASS_EMOJIS['Paladin'] ?? '' },
-  'paladin rules':    { label: 'PALADIN',          emoji: CLASS_EMOJIS['Paladin'] ?? '' },
-  'amazon':           { label: 'AMAZON',           emoji: CLASS_EMOJIS['Amazon'] ?? '' },
-  'amazon rules':     { label: 'AMAZON',           emoji: CLASS_EMOJIS['Amazon'] ?? '' },
-  'sorceress':        { label: 'SORCERESS',        emoji: CLASS_EMOJIS['Sorceress'] ?? '' },
-  'sorceress rules':  { label: 'SORCERESS',        emoji: CLASS_EMOJIS['Sorceress'] ?? '' },
 };
 
 // ── Section type ──────────────────────────────────────────────────────────────
@@ -169,7 +155,7 @@ export function buildRulesEmbeds(
   const contTitle = variant === 'rules'
     ? `${CAIN_EMOJI} Rules (continued)`
     : `${CAIN_EMOJI} Test Rules (continued)`;
-  const footerText = 'Use /matchup <build> <build> for matchup-specific rules.';
+  const footerText = 'Use /class-rules for class-specific rules.';
   const preamble = `${ALL_CLASS_EMOJIS}\n\n`;
 
   const pages: string[] = [];

@@ -4,12 +4,10 @@ import { config, resolveGoogleCredentials } from '../config.js';
 // ── Sheet tab names ──────────────────────────────────────────────────────────
 
 export const SHEET_TABS = {
-  matchups: 'Matchups',
   banned: 'Banned matchups',
   deathmatches: 'Matchups: Deathmatches',
   classRules: 'Class Rules',
   rules: '1v1 Rules',
-  testRules: 'Test 1v1 Rules',
   questions: 'Questions',
   ladder: 'Ladder',
 } as const;
@@ -51,13 +49,6 @@ export async function readRange(range: string): Promise<string[][]> {
 // ── Tab-specific readers ─────────────────────────────────────────────────────
 
 /**
- * Returns the full Matchups matrix as a 2D array (including header row/col).
- */
-export async function fetchMatchupsMatrix(): Promise<string[][]> {
-  return readRange(SHEET_TABS.matchups);
-}
-
-/**
  * Returns the Banned matchups tab as a 2D array.
  * Row format: [build, banned1, banned2, ..., banned5]
  */
@@ -86,13 +77,6 @@ export async function fetchClassRules(): Promise<string[][]> {
  */
 export async function fetchGeneralRules(): Promise<string[][]> {
   return readRange(SHEET_TABS.rules);
-}
-
-/**
- * Returns the Test 1v1 Rules tab content.
- */
-export async function fetchTestRules(): Promise<string[][]> {
-  return readRange(SHEET_TABS.testRules);
 }
 
 /**

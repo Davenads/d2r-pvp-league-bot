@@ -15,15 +15,6 @@ export interface Command {
 
 // ── Google Sheets data shapes ────────────────────────────────────────────────
 
-/** A single cell value from the Matchups matrix */
-export interface MatchupRules {
-  buildA: string;
-  buildB: string;
-  rulesForA: string;  // cell [buildA row][buildB col]
-  rulesForB: string;  // cell [buildB row][buildA col]
-  isBanned: boolean;
-}
-
 /** One row from the Ladder tab */
 export interface LadderEntry {
   rank: number;
@@ -58,15 +49,10 @@ export interface DeathmatchAlternatives {
 // ── Cache key helpers ────────────────────────────────────────────────────────
 
 export const CacheKeys = {
-  matchup: (a: string, b: string) => {
-    const [x, y] = [a, b].sort();
-    return `d2r:matchup:${x}:${y}`;
-  },
   banned: () => 'd2r:banned',
   deathmatch: (build: string) => `d2r:deathmatch:${build}`,
   deathmatches: () => 'd2r:deathmatches',
   rulesGeneral: () => 'd2r:rules:general',
-  rulesTest: () => 'd2r:rules:test',
   classRules: () => 'd2r:rules:class',
   faq: () => 'd2r:faq',
   ladder: () => 'd2r:ladder',

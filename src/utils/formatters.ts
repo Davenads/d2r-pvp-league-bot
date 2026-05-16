@@ -1,5 +1,5 @@
 import { EmbedBuilder, Colors } from 'discord.js';
-import type { MatchupRules, LadderEntry } from '../types/index.js';
+import type { LadderEntry } from '../types/index.js';
 import type { ClassRulesEntry } from '../services/content.js';
 import { getClassEmoji, CLASS_EMOJIS, CAIN_EMOJI } from './classEmojis.js';
 
@@ -16,47 +16,6 @@ export const EMBED_COLORS = {
   rules: 0x8B4513,  // earthy brown — on-theme for D2
   ladder: Colors.Gold,
 } as const;
-
-// ── Matchup embeds ───────────────────────────────────────────────────────────
-
-export function buildBannedMatchupEmbed(buildA: string, buildB: string): EmbedBuilder {
-  const emojiA = getClassEmoji(buildA);
-  const emojiB = getClassEmoji(buildB);
-  const labelA = emojiA ? `${emojiA} ${buildA}` : buildA;
-  const labelB = emojiB ? `${emojiB} ${buildB}` : buildB;
-  return new EmbedBuilder()
-    .setColor(EMBED_COLORS.banned)
-    .setTitle(`${CAIN_EMOJI} Banned Matchup`)
-    .setDescription(
-      `**${labelA}** vs **${labelB}** is a **banned matchup** and cannot be played in the regular season.\n\nCheck \`/deathmatch\` for alternative opponents.`
-    );
-}
-
-export function buildMatchupEmbed(rules: MatchupRules): EmbedBuilder {
-  const emojiA = getClassEmoji(rules.buildA);
-  const emojiB = getClassEmoji(rules.buildB);
-  const labelA = emojiA ? `${emojiA} ${rules.buildA}` : rules.buildA;
-  const labelB = emojiB ? `${emojiB} ${rules.buildB}` : rules.buildB;
-
-  const embed = new EmbedBuilder()
-    .setColor(EMBED_COLORS.rules)
-    .setTitle(`${CAIN_EMOJI} ${labelA}  vs  ${labelB}`)
-    .setFooter({ text: 'Rules sourced from D2R 1v1 League ruleset. Use /rules for general rules.' });
-
-  embed.addFields({
-    name: `${emojiA ? emojiA + ' ' : ''}${rules.buildA} Rules`,
-    value: rules.rulesForA || '*No specific restrictions.*',
-    inline: false,
-  });
-
-  embed.addFields({
-    name: `${emojiB ? emojiB + ' ' : ''}${rules.buildB} Rules`,
-    value: rules.rulesForB || '*No specific restrictions.*',
-    inline: false,
-  });
-
-  return embed;
-}
 
 // ── Class rules embed ─────────────────────────────────────────────────────────
 

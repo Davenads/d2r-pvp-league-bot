@@ -3,7 +3,7 @@ import type { Command } from '../../types/index.js';
 import { cacheFlushPattern } from '../../services/cache.js';
 import { EMBED_COLORS, CAIN_EMOJI } from '../../utils/formatters.js';
 import { assertModRole } from '../../utils/modGuard.js';
-import { getGeneralRules, getTestRules, getFaqEntries, getDeathmatches } from '../../services/content.js';
+import { getGeneralRules, getFaqEntries, getDeathmatches, getClassRules } from '../../services/content.js';
 import { refreshBannedCache } from '../../services/matchup.js';
 
 interface TabEntry {
@@ -14,11 +14,6 @@ interface TabEntry {
 }
 
 const TAB_ENTRIES: Record<string, TabEntry> = {
-  matchups: {
-    label: 'Matchups',
-    pattern: 'd2r:matchup:*',
-    // 676 per-pairing keys — too expensive to re-warm all combinations upfront; lazy on next lookup
-  },
   banned: {
     label: 'Banned',
     pattern: 'd2r:banned*',
@@ -37,18 +32,18 @@ const TAB_ENTRIES: Record<string, TabEntry> = {
   },
   rules: {
     label: 'Rules',
-    pattern: 'd2r:rules:*',
+    pattern: 'd2r:rules:general',
     rewarm: async () => {
       const lines = await getGeneralRules();
       return `${lines.length} line${lines.length !== 1 ? 's' : ''} loaded`;
     },
   },
-  testRules: {
-    label: 'Test Rules',
-    pattern: 'd2r:rules:test*',
+  classRules: {
+    label: 'Class Rules',
+    pattern: 'd2r:rules:class',
     rewarm: async () => {
-      const lines = await getTestRules();
-      return `${lines.length} line${lines.length !== 1 ? 's' : ''} loaded`;
+      const map = await getClassRules();
+      return `${map.size} class${map.size !== 1 ? 'es' : ''} loaded`;
     },
   },
   faq: {
@@ -67,7 +62,7 @@ const TAB_ENTRIES: Record<string, TabEntry> = {
 };
 
 const ALL_TABS_ORDER: (keyof typeof TAB_ENTRIES)[] = [
-  'matchups', 'banned', 'deathmatches', 'rules', 'testRules', 'faq', 'ladder',
+  'banned', 'deathmatches', 'rules', 'classRules', 'faq', 'ladder',
 ];
 
 export const command: Command = {
@@ -80,11 +75,10 @@ export const command: Command = {
         .setDescription('Which tab to refresh (default: all)')
         .addChoices(
           { name: 'All', value: 'all' },
-          { name: 'Matchups', value: 'matchups' },
           { name: 'Banned Matchups', value: 'banned' },
           { name: 'Deathmatches', value: 'deathmatches' },
           { name: 'General Rules', value: 'rules' },
-          { name: 'Test Rules', value: 'testRules' },
+          { name: 'Class Rules', value: 'classRules' },
           { name: 'FAQ', value: 'faq' },
           { name: 'Ladder', value: 'ladder' },
         )
@@ -130,9 +124,6 @@ export const command: Command = {
               icon = '❌';
               anyError = true;
             }
-          } else if (key === 'matchups') {
-            status = 'cleared — re-warms lazily on next lookup';
-            icon = '🗑️';
           } else {
             // ladder
             status = 'cleared — run /refresh-ladder to re-warm';
@@ -168,10 +159,6 @@ export const command: Command = {
             description = `**${entry.label}** flushed but re-warm from Google Sheets failed. Check bot logs.`;
             color = EMBED_COLORS.warning;
           }
-        } else if (tab === 'matchups') {
-          description = flushed > 0
-            ? `**Matchups** — cleared ${flushed} cached pairing${flushed !== 1 ? 's' : ''}. Rules will re-warm lazily on next lookup.`
-            : `**Matchups** cache was already cold. Rules will fetch fresh on next lookup.`;
         } else {
           // ladder
           description = flushed > 0
