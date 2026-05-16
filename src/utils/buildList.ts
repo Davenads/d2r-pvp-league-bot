@@ -159,3 +159,15 @@ export function getBuildChoices(partial: string): Array<{ name: string; value: s
     .slice(0, 25)
     .map((b) => ({ name: b, value: b }));
 }
+
+/**
+ * Extracts the class name from a canonical build name.
+ * e.g. "Druid - Windy"      → "Druid"
+ *      "Necromancer - Bone" → "Necromancer"
+ *      "Assassin - Ghost"   → "Assassin"
+ * Returns the full string unchanged if the expected format is not found.
+ */
+export function getClassFromBuild(buildName: string): string {
+  const dashIdx = buildName.indexOf(' - ');
+  return dashIdx !== -1 ? buildName.slice(0, dashIdx) : buildName;
+}
