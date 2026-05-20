@@ -48,13 +48,12 @@ The spreadsheet is the **single source of truth** for all game rules and league 
 
 | Tab Name | Purpose | Update Frequency |
 |---|---|---|
-| `Matchups` | 26×26 build matrix — each cell contains the ruleset text for that specific matchup | Seasonal / mod-updated |
 | `Banned matchups` | List of build vs build combinations that are outright banned from being played | Seasonal / mod-updated |
 | `Matchups: Deathmatches` | Per-build list of Deathmatch alternatives (up to 5) | Seasonal / mod-updated |
-| `TDL Rules` | General tournament/league rules | Seasonal |
+| `Class Rules` | Per-class rules for all 7 classes; col A = class name, col B = multi-line cell with `Test rule(s)` as delimiter between regular and test rules | Seasonal / mod-updated |
+| `1v1 Rules` | General tournament/league rules (General Rules, Map Rules, Item Rules sections) | Seasonal |
 | `Questions` | FAQ / common questions | As needed |
 | `Ladder` | Player standings / rankings | Ongoing (updated on match result) |
-| `DFC` | Not used by this bot — disregard | N/A |
 
 ### Builds (26 total)
 
@@ -74,7 +73,7 @@ The spreadsheet is the **single source of truth** for all game rules and league 
 
 | Data | Storage | Rationale |
 |---|---|---|
-| Matchup rules, banned list, deathmatches, D2R 1v1 League rules, FAQ | Redis (cached from Sheets) | Read-heavy, rarely changes, Sheets is source of truth |
+| Banned list, deathmatches, class rules, general rules, FAQ | Redis (cached from Sheets) | Read-heavy, rarely changes, Sheets is source of truth |
 | Ladder standings / leaderboard display | Google Sheets (`Ladder` tab) + Redis cache | Sheet is source of truth; bot reads and caches; bot writes W/L increments on result confirm |
 | Player registration metadata, match history, warning counts | **PostgreSQL** | Durable, relational, survives dyno restarts |
 | Active queue state, current match state, farming cap tracking | **Redis** | Transient — fine to lose on restart, fast access needed |
@@ -86,7 +85,7 @@ The spreadsheet is the **single source of truth** for all game rules and league 
   - Rules/matchups (rarely changes): long TTL (e.g., 1 hour or until manually invalidated)
   - Ladder display: short TTL or invalidate on write
 - Provide a mod-only `/refresh-cache` command to force-refresh all or specific tabs
-- Cache keys namespaced: `d2r:matchups:<build_a>:<build_b>`, `d2r:banned:...`, `d2r:queue:...`, etc.
+- Cache keys namespaced: `d2r:banned`, `d2r:deathmatch:{build}`, `d2r:rules:general`, `d2r:rules:class`, `d2r:faq`, `d2r:queue`, etc.
 
 ### PostgreSQL (via Prisma)
 - Stores: `Player`, `Match`, `Warning`, `Season` tables
@@ -107,7 +106,7 @@ src/
   services/
     sheets.ts         # Google Sheets API wrapper
     cache.ts          # Redis wrapper (ioredis)
-    matchup.ts        # Matchup lookup logic (combines sheets + cache)
+    matchup.ts        # Banned matchup + deathmatch lookup (combines sheets + cache)
     ladder.ts         # Ladder read/write logic (reads Postgres, caches in Redis)
     queue.ts          # Queue management (Redis state) + match creation
     scheduler.ts      # Cron jobs: forced match cadence, warning escalation
@@ -139,10 +138,10 @@ The `release` phase runs Prisma migrations automatically on every deploy before 
 
 | Command | Description |
 |---|---|
-| `/matchup <build_a> <build_b>` | Look up the rules for a specific build vs build matchup |
+| `/class-rules [class]` | Show class-specific rules — omit class to see all 7 classes |
+| `/rules` | Display the general D2R 1v1 League rules |
 | `/banned-matchups [build]` | List all banned matchups (optionally filtered by build) |
 | `/deathmatch <build>` | Show the deathmatch alternatives for a given build |
-| `/rules` | Display the general D2R 1v1 League rules |
 | `/ladder [page]` | Show current league standings |
 | `/player <name>` | Show a player's stats, build(s), and record |
 | `/faq [topic]` | Look up FAQ entries |
@@ -224,13 +223,9 @@ NODE_ENV=development
 
 6. **Mirror matches require mutual consent.** Stadium confirmed mirrors are allowed but both players must agree. The bot facilitates this via a button-based consent flow.
 
-7. **Matchup rule display shows BOTH sides.** Stadium's intent: when displaying matchup rules for a match (e.g., NvD), show ALL of the Necro's rules AND ALL of the Druid's rules — not just the matchup-specific cell. Exception: for NvT, also append the test rule.
+7. **Build name resolution.** Build names should support partial/fuzzy matching and aliases (e.g., "hammerdin" → "Paladin - Hammerdin"). A canonical build list with aliases lives in `src/utils/buildList.ts`. Class name is extracted from a build name by splitting on ` - ` and taking the first segment (e.g., `"Druid - Windy"` → `"Druid"`); this is done via `getClassFromBuild()` in `buildList.ts`.
 
-8. **Build name resolution.** Build names should support partial/fuzzy matching and aliases (e.g., "hammerdin" → "Paladin - Hammerdin"). A canonical build list with aliases lives in `src/utils/buildList.ts`.
-
-9. **Matchup lookup is symmetric.** `/matchup Ghost Trapper` and `/matchup Trapper Ghost` should return the same result (check both [A][B] and [B][A] cells in the matrix).
-
-10. **Banned matchup handling.** Before displaying matchup rules, always check whether the matchup is on the banned list and surface that prominently if so.
+8. **Banned matchup handling.** The banned list is enforced during queue pairing — all NxM build pairings are computed, banned ones filtered out. If all are banned, an override prompt is shown. Banned pairings are stored as sorted `A::B` keys in Redis (`d2r:banned`).
 
 11. **Deathmatch is triggered by specific build pairings.** The `Matchups: Deathmatches` tab defines which matchups are inherently deathmatches (e.g., Barb vs Hammerdin). When the bot randomly selects a pairing, it checks this tab — if either build lists the other as a deathmatch opponent, the match is typed DEATHMATCH (FT2). This is not a fallback for banned matchups; it is a designated match type. Each build has up to 5 deathmatch opponents. The tab is cached in Redis and used during matchup detection at match time.
 
@@ -248,7 +243,7 @@ NODE_ENV=development
 
 14. **Warning system.** Unresponsive players (who fail to acknowledge a forced match) receive a warning stored in Postgres. Reaching the `WARNING_THRESHOLD` (default: 5) triggers automatic removal from the ladder. Mods can manually issue or clear warnings.
 
-15. **Auto-created thread per match.** When two players are matched, the bot creates a private thread in a designated channel, adds both players, and posts the matchup + applicable rules. Requires `MANAGE_THREADS` permission.
+15. **Auto-created thread per match.** When two players are matched, the bot creates a private thread in a designated channel, adds both players, and posts (in order): (1) match announcement embed (builds, FT2/FT4, `/report-win` instruction), (2) general rules embeds (same content as `/rules`), (3) class rules embed(s) for each class involved — deduplicated so same-class matchups only post once. Requires `MANAGE_THREADS` permission.
 
 16. **Farming cap.** A player cannot be matched against the same opponent more than `FARMING_CAP_MAX` times (default: 2) within a `FARMING_CAP_HOURS` window (default: 24h). This is tracked in Redis with TTL.
 
@@ -308,7 +303,6 @@ When the user asks to implement multiple features/commands in sequence:
 | File | Purpose |
 |---|---|
 | `CLAUDE.md` | This file — project context for Claude Code |
-| `D2R PvP 1v1 League - Matchups.csv` | Local snapshot of the Matchups sheet tab |
 | `Images/` | Screenshots of the Google Sheet structure |
-| `plan/` | Planning docs (gitignored — not shipped); includes `ladder-schema.md` for Google Sheet column reference |
+| `plan/` | Planning docs (gitignored — not shipped); includes `ladder-schema.md` for Google Sheet column reference, `sheets-data-reference.md` for tab structure |
 | `src/config/channels.ts` | Hardcoded Discord channel IDs for production server |
