@@ -10,6 +10,7 @@ export const SHEET_TABS = {
   rules: '1v1 Rules',
   questions: 'Questions',
   ladder: 'Ladder',
+  blacklistRegistry: 'Blacklist Registry',
 } as const;
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
@@ -91,4 +92,12 @@ export async function fetchFaq(): Promise<string[][]> {
  */
 export async function fetchLadder(): Promise<string[][]> {
   return readRange(`${SHEET_TABS.ladder}!A:U`);
+}
+
+/**
+ * Returns the Blacklist Registry tab as a 1D array of raw row strings.
+ * Each cell in column A contains a pipe-separated list of canonical build names.
+ */
+export async function fetchBlacklist(): Promise<string[][]> {
+  return readRange(`${SHEET_TABS.blacklistRegistry}!A:A`);
 }
