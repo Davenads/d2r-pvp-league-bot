@@ -5,6 +5,7 @@ import { EMBED_COLORS, CAIN_EMOJI } from '../../utils/formatters.js';
 import { assertModRole } from '../../utils/modGuard.js';
 import { getGeneralRules, getFaqEntries, getDeathmatches, getClassRules } from '../../services/content.js';
 import { refreshBannedCache } from '../../services/matchup.js';
+import { loadBlacklist, invalidateBlacklist } from '../../services/blacklist.js';
 
 interface TabEntry {
   label: string;
@@ -59,10 +60,19 @@ const TAB_ENTRIES: Record<string, TabEntry> = {
     pattern: 'd2r:ladder*',
     // Ladder re-warm handled by /refresh-ladder (writes leaderboard embed too)
   },
+  blacklist: {
+    label: 'Blacklist Registry',
+    pattern: 'd2r:blacklist',
+    rewarm: async () => {
+      await invalidateBlacklist();
+      const combos = await loadBlacklist();
+      return `${combos.length} combo${combos.length !== 1 ? 's' : ''} loaded`;
+    },
+  },
 };
 
 const ALL_TABS_ORDER: (keyof typeof TAB_ENTRIES)[] = [
-  'banned', 'deathmatches', 'rules', 'classRules', 'faq', 'ladder',
+  'banned', 'deathmatches', 'rules', 'classRules', 'faq', 'ladder', 'blacklist',
 ];
 
 export const command: Command = {
@@ -81,6 +91,7 @@ export const command: Command = {
           { name: 'Class Rules', value: 'classRules' },
           { name: 'FAQ', value: 'faq' },
           { name: 'Ladder', value: 'ladder' },
+          { name: 'Blacklist Registry', value: 'blacklist' },
         )
     ),
 
