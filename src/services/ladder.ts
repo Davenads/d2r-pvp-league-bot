@@ -174,6 +174,15 @@ export async function addPlayerToLadder(
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [row] },
   });
+
+  // Overwrite the Discord UUID cell using RAW to prevent Sheets from interpreting the
+  // 18-digit snowflake as a number (USER_ENTERED causes precision loss on large integers).
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: config.google.sheetId,
+    range: `${LADDER_TAB}!C${nextSheetRow}`,
+    valueInputOption: 'RAW',
+    requestBody: { values: [[discordId]] },
+  });
   console.log(`[Ladder] addPlayerToLadder: wrote row ${nextSheetRow} for ${discordId} (${discordUsername})`);
 }
 
