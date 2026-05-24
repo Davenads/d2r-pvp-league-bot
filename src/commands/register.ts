@@ -8,6 +8,7 @@ import {
 } from 'discord.js';
 import type { Command } from '../types/index.js';
 import { getBuildChoices, resolveBuild } from '../utils/buildList.js';
+import { checkBlacklistViolation } from '../services/blacklist.js';
 import { buildErrorEmbed, buildRegistrationEmbed, CAIN_EMOJI } from '../utils/formatters.js';
 import { getClassEmoji } from '../utils/classEmojis.js';
 import { prisma } from '../db/client.js';
@@ -90,6 +91,19 @@ export const command: Command = {
     if (new Set(builds).size !== builds.length) {
       await interaction.editReply({
         embeds: [buildErrorEmbed('All registered builds must be different.')],
+      });
+      return;
+    }
+
+    // Blacklist check
+    const violation = await checkBlacklistViolation(builds);
+    if (violation) {
+      await interaction.editReply({
+        embeds: [
+          buildErrorEmbed(
+            `Your build combination is not allowed for registration.\n\n**Blocked combo:** ${violation}\n\nYou must include at least one build outside this group. Contact a mod if you have questions.`
+          ),
+        ],
       });
       return;
     }
