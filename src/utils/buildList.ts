@@ -43,6 +43,7 @@ const BUILD_ALIASES: Record<string, string> = {
   'javazon': 'Amazon - CS Zon',
   'telebow': 'Amazon - Telebow',
   'walkbow': 'Amazon - Walkbow',
+  'walkzon': 'Amazon - Walkbow',
   // Assassin
   'ghost': 'Assassin - Ghost',
   'ghostsin': 'Assassin - Ghost',
@@ -79,6 +80,7 @@ const BUILD_ALIASES: Record<string, string> = {
   't/v': 'Paladin - T/V',
   'vc': 'Paladin - V/C',
   'v/c': 'Paladin - V/C',
+  'vo': 'Paladin - V/C',
   'vt': 'Paladin - V/T',
   'v/t': 'Paladin - V/T',
   // Sorceress
