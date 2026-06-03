@@ -15,8 +15,7 @@ import type { BuildPairing } from '../types/index.js';
 import { EMBED_COLORS, buildClassRulesEmbed } from './formatters.js';
 import { getClassEmoji, CAIN_EMOJI } from './classEmojis.js';
 import { getClassFromBuild } from './buildList.js';
-import { getGeneralRules, getClassRules } from '../services/content.js';
-import { parseRulesIntoSections, buildRulesEmbeds } from './rulesParser.js';
+import { getClassRules } from '../services/content.js';
 
 /**
  * Post the "all matchups are banned" embed into a thread.
@@ -122,17 +121,9 @@ export async function postMatchAnnouncementEmbed(
     embeds: [embed],
   });
 
-  // ── Post general rules + class rules ─────────────────────────────────────
+  // ── Post class rules ──────────────────────────────────────────────────────
   // Wrapped in try/catch — a rules fetch failure must not break the match flow.
   try {
-    // General rules
-    const generalLines = await getGeneralRules();
-    const sections = parseRulesIntoSections(generalLines);
-    const generalEmbeds = buildRulesEmbeds(sections, 'rules');
-    for (const ruleEmbed of generalEmbeds) {
-      await thread.send({ embeds: [ruleEmbed] });
-    }
-
     // Class rules — deduplicated if both builds share the same class
     const classMap = await getClassRules();
     const class1 = getClassFromBuild(matchup.build1);
