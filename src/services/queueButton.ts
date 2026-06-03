@@ -29,15 +29,20 @@ function buildQueueButtonRow(): ActionRowBuilder<ButtonBuilder> {
   );
 }
 
+/** Returns the channel the queue button lives in — #1v1-sign-up-here. */
+function getQueueButtonChannel(client: Client): TextChannel | undefined {
+  return client.channels.cache.get(CHANNELS.signUpHere) as TextChannel | undefined;
+}
+
 /**
- * Ensures the persistent queue button embed exists in the leaderboard channel.
+ * Ensures the persistent queue button embed exists in #1v1-sign-up-here.
  * Called on bot startup. Recovers across restarts via Redis message ID.
  */
 export async function ensureQueueButtonExists(client: Client): Promise<void> {
   try {
-    const channel = client.channels.cache.get(CHANNELS.leaderboard) as TextChannel | undefined;
+    const channel = getQueueButtonChannel(client);
     if (!channel) {
-      console.warn('[QueueButton] Leaderboard channel not in cache:', CHANNELS.leaderboard);
+      console.warn('[QueueButton] sign-up-here channel not in cache:', CHANNELS.signUpHere);
       return;
     }
 
@@ -84,5 +89,38 @@ export async function ensureQueueButtonExists(client: Client): Promise<void> {
     console.log('[QueueButton] New button embed posted (msg:', msg.id, ')');
   } catch (err) {
     console.error('[QueueButton] Failed to ensure button exists:', err);
+  }
+}
+
+/**
+ * Deletes the stored queue button message and re-posts a fresh one at the bottom
+ * of #1v1-sign-up-here. Call this after any registration announcement to keep
+ * the button pinned visually at the bottom of the channel.
+ */
+export async function repostQueueButton(client: Client): Promise<void> {
+  try {
+    const channel = getQueueButtonChannel(client);
+    if (!channel) return;
+
+    // Delete the old button message if we know where it is
+    const storedMsgId = await cacheGet<string>(CacheKeys.queueBtnMsgId());
+    if (storedMsgId) {
+      try {
+        const old = await channel.messages.fetch(storedMsgId);
+        await old.delete();
+      } catch {
+        // Already deleted or not found — that's fine
+      }
+    }
+
+    // Post a fresh one at the bottom
+    const msg = await channel.send({
+      embeds: [buildQueueButtonEmbed()],
+      components: [buildQueueButtonRow()],
+    });
+    await cacheSet(CacheKeys.queueBtnMsgId(), msg.id, BTN_MSG_TTL);
+    console.log('[QueueButton] Re-posted to bottom (msg:', msg.id, ')');
+  } catch (err) {
+    console.error('[QueueButton] Failed to repost button:', err);
   }
 }

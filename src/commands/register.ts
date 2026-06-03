@@ -14,6 +14,7 @@ import { getClassEmoji } from '../utils/classEmojis.js';
 import { prisma } from '../db/client.js';
 import { CHANNELS } from '../config/channels.js';
 import { addPlayerToLadder, reactivatePlayerOnLadder, resetPlayerOnLadder } from '../services/ladder.js';
+import { repostQueueButton } from '../services/queueButton.js';
 
 export const command: Command = {
   data: new SlashCommandBuilder()
@@ -211,10 +212,14 @@ export const command: Command = {
         ],
       });
 
-      // Public announcement in #1v1-sign-up-here
+      // Public announcement in #1v1-sign-up-here, then re-pin the queue button below it
       const signUpChannel = interaction.client.channels.cache.get(CHANNELS.signUpHere) as TextChannel | undefined;
       if (signUpChannel) {
         await signUpChannel.send({ embeds: [buildRegistrationEmbed(discordUsername, discordId, builds)] });
+        // Re-post queue button to the bottom so it stays visible after the new registration post
+        repostQueueButton(interaction.client).catch((e) =>
+          console.error('[/register] Failed to repost queue button:', e)
+        );
       }
 
       // Mod log
