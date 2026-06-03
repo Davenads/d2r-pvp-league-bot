@@ -17,6 +17,7 @@ import {
   clearForcedMatch,
 } from '../services/queue.js';
 import { CHANNELS } from '../config/channels.js';
+import { ROLES } from '../config/roles.js';
 import { postAllBannedEmbed, postMatchAnnouncementEmbed } from './matchupUI.js';
 
 type QueueInteraction = ChatInputCommandInteraction | ButtonInteraction;
@@ -117,6 +118,20 @@ export async function executeQueueJoin(interaction: QueueInteraction): Promise<v
 
         await thread.members.add(discordId);
         await thread.members.add(opponentDiscordId);
+
+        // Add all 1v1 Moderator role members to the thread
+        const guild = interaction.guild;
+        if (guild) {
+          const modRole = guild.roles.cache.get(ROLES.mod)
+            ?? await guild.roles.fetch(ROLES.mod).catch(() => null);
+          if (modRole) {
+            for (const [modId] of modRole.members) {
+              await thread.members.add(modId).catch(() => {
+                console.warn(`[queueJoin] Could not add mod ${modId} to thread`);
+              });
+            }
+          }
+        }
 
         if (matchId > 0) {
           await setMatchThreadId(discordId, thread.id);
