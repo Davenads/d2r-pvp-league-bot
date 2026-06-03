@@ -29,6 +29,7 @@ import {
 } from '../../services/queue.js';
 import type { ActiveMatchState } from '../../types/index.js';
 import { CHANNELS } from '../../config/channels.js';
+import { ROLES } from '../../config/roles.js';
 import { assertModRole } from '../../utils/modGuard.js';
 import { postAllBannedEmbed, postMatchAnnouncementEmbed } from '../../utils/matchupUI.js';
 
@@ -116,6 +117,20 @@ export const command: Command = {
 
           await thread.members.add(p1User.id);
           await thread.members.add(p2User.id);
+
+          // Add all 1v1 Moderator role members to the thread
+          const guild = interaction.guild;
+          if (guild) {
+            const modRole = guild.roles.cache.get(ROLES.mod)
+              ?? await guild.roles.fetch(ROLES.mod).catch(() => null);
+            if (modRole) {
+              for (const [modId] of modRole.members) {
+                await thread.members.add(modId).catch(() => {
+                  console.warn(`[/admin-forcematch] Could not add mod ${modId} to thread`);
+                });
+              }
+            }
+          }
         } catch (threadErr) {
           console.error('[/admin-forcematch] Failed to create match thread:', threadErr);
         }
