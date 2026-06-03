@@ -18,10 +18,10 @@ async function getLadderEntries(): Promise<LadderEntry[]> {
   const headers = rows[0].map((h) => h.trim().toLowerCase());
 
   const idx = (name: string) => headers.indexOf(name);
-  const entries: LadderEntry[] = rows.slice(1)
+  const unsorted: LadderEntry[] = rows.slice(1)
     .filter((row) => row[idx('status')]?.trim() === 'Available' && (row[idx('discord_username')] || '').trim())
     .map((row) => ({
-      rank: parseInt(row[idx('rank')] || '0', 10),
+      rank: 0, // assigned below after sort
       discordUsername: row[idx('discord_username')] ?? '',
       discordId: row[idx('discord_id')] ?? '',
       build1: row[idx('build_1')] ?? '',
@@ -43,6 +43,16 @@ async function getLadderEntries(): Promise<LadderEntry[]> {
       registered: row[idx('registered')] ?? '',
       notes: row[idx('notes')] || undefined,
     }));
+
+  // Sort: points desc → W% desc → total wins desc (ensures 0-pt players land last)
+  unsorted.sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    if (b.winPct !== a.winPct) return b.winPct - a.winPct;
+    return b.wins - a.wins;
+  });
+
+  // Assign ranks 1…N after sort
+  const entries: LadderEntry[] = unsorted.map((e, i) => ({ ...e, rank: i + 1 }));
 
   await cacheSet(CacheKeys.ladder(), entries, config.cache.ttlLadder);
   return entries;
