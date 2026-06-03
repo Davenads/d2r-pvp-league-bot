@@ -9,6 +9,7 @@ import {
 import type { Interaction, ButtonInteraction } from 'discord.js';
 import type { BotClient } from '../index.js';
 import { buildErrorEmbed, EMBED_COLORS, CAIN_EMOJI } from '../utils/formatters.js';
+import { processMatchResult } from '../utils/matchResult.js';
 import { executeQueueJoin } from '../utils/queueJoin.js';
 import { prisma } from '../db/client.js';
 import {
@@ -92,6 +93,12 @@ export async function execute(interaction: Interaction): Promise<void> {
       return;
     }
 
+    if (action === 'report_win') {
+      // payload format: {matchId}:{winnerId}
+      await handleReportWinButton(interaction, payload);
+      return;
+    }
+
     if (action === 'archive_thread') {
       await handleArchiveThread(interaction, payload);
       return;
@@ -108,6 +115,62 @@ export async function execute(interaction: Interaction): Promise<void> {
       await handleOverrideBanned(interaction, payload);
       return;
     }
+  }
+}
+
+// ── Report win button handler ─────────────────────────────────────────────────
+// Triggered by the "Player X Won" buttons posted in a match thread at match creation.
+// payload: {matchId}:{winnerId}
+
+async function handleReportWinButton(interaction: ButtonInteraction, payload: string): Promise<void> {
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    const colonIdx = payload.indexOf(':');
+    const matchId = colonIdx === -1 ? parseInt(payload, 10) : parseInt(payload.slice(0, colonIdx), 10);
+    const winnerId = colonIdx === -1 ? '' : payload.slice(colonIdx + 1);
+
+    if (!matchId || !winnerId) {
+      await interaction.editReply({ embeds: [buildErrorEmbed('Invalid button data.')] });
+      return;
+    }
+
+    // Verify the clicker is a participant in this match
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      include: { player1: true, player2: true },
+    });
+
+    if (!match) {
+      await interaction.editReply({ embeds: [buildErrorEmbed('Match not found. Contact a mod.')] });
+      return;
+    }
+
+    const clickerId = interaction.user.id;
+    const { player1, player2 } = match;
+    if (clickerId !== player1.discordId && clickerId !== player2.discordId) {
+      await interaction.editReply({ embeds: [buildErrorEmbed("You aren't a participant in this match.")] });
+      return;
+    }
+
+    const result = await processMatchResult(
+      interaction.client,
+      matchId,
+      winnerId,
+      clickerId,
+      false,             // test_rule not supported via button — use /report-win for that
+      interaction.channelId,
+    );
+
+    if (!result.success) {
+      await interaction.editReply({ embeds: [buildErrorEmbed(result.errorMessage)] });
+      return;
+    }
+
+    await interaction.editReply({ embeds: [result.embed] });
+  } catch (err) {
+    console.error('[report_win button]', err);
+    await interaction.editReply({ embeds: [buildErrorEmbed('Failed to record result. Try again or contact a mod.')] });
   }
 }
 
