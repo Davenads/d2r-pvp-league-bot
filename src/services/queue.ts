@@ -358,6 +358,24 @@ export async function clearForcedMatch(discordId: string): Promise<void> {
   await redis.del(CacheKeys.forcedMatch(discordId));
 }
 
+/** Stores the thread ID of a forced match notification thread (TTL matches forcedMatch: 48h). */
+export async function setForcedMatchThread(discordId: string, threadId: string): Promise<void> {
+  const redis = getRedisClient();
+  await redis.set(CacheKeys.forcedMatchThread(discordId), threadId, 'EX', 172800);
+}
+
+/** Returns the thread ID of a pending forced match notification thread, or null. */
+export async function getForcedMatchThread(discordId: string): Promise<string | null> {
+  const redis = getRedisClient();
+  return redis.get(CacheKeys.forcedMatchThread(discordId));
+}
+
+/** Deletes the forced match notification thread key (called on queue join). */
+export async function clearForcedMatchThread(discordId: string): Promise<void> {
+  const redis = getRedisClient();
+  await redis.del(CacheKeys.forcedMatchThread(discordId));
+}
+
 // ── Mirror request storage ────────────────────────────────────────────────────
 
 const MIRROR_REQUEST_TTL = 300; // 5 minutes

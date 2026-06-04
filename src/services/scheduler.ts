@@ -16,11 +16,13 @@
  */
 
 import type { Client, TextChannel } from 'discord.js';
-import { EmbedBuilder, Colors, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { EmbedBuilder, Colors, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType } from 'discord.js';
+import type { ThreadChannel } from 'discord.js';
 import { prisma } from '../db/client.js';
-import { getForcedMatch, setForcedMatch, clearForcedMatch } from './queue.js';
+import { getForcedMatch, setForcedMatch, clearForcedMatch, setForcedMatchThread } from './queue.js';
 import { updateLeaderboardEmbed } from './leaderboardEmbed.js';
 import { CHANNELS } from '../config/channels.js';
+import { ROLES } from '../config/roles.js';
 import { config } from '../config.js';
 
 const FOUR_HOURS_MS         = 4 * 60 * 60 * 1000;
@@ -156,6 +158,55 @@ async function runCadenceCheck(client: Client): Promise<void> {
         });
       } catch {
         // DMs may be closed — queue channel post is the fallback
+      }
+
+      // Create a private notification thread for this player (H1)
+      const threadParent = client.channels.cache.get(CHANNELS.matchThreads) as TextChannel | undefined;
+      if (threadParent) {
+        try {
+          const thread = await threadParent.threads.create({
+            name: `Forced Assignment: ${player.discordUsername}`,
+            type: ChannelType.PrivateThread,
+            reason: `Forced match cadence notification for ${player.discordUsername}`,
+          }) as ThreadChannel;
+
+          await thread.members.add(player.discordId);
+
+          // Add all mods
+          const guild = client.guilds.cache.first();
+          if (guild) {
+            const modRole = guild.roles.cache.get(ROLES.mod)
+              ?? await guild.roles.fetch(ROLES.mod).catch(() => null);
+            if (modRole) {
+              for (const [modId] of modRole.members) {
+                await thread.members.add(modId).catch(() => {
+                  console.warn(`[Scheduler] Could not add mod ${modId} to forced-assignment thread`);
+                });
+              }
+            }
+          }
+
+          await thread.send({
+            content: `<@${player.discordId}>`,
+            embeds: [
+              new EmbedBuilder()
+                .setColor(Colors.Yellow)
+                .setTitle('Forced Match Assignment')
+                .setDescription(
+                  `<@${player.discordId}>, it's been more than **${config.league.matchCadenceDays} days** since your last match.\n\n` +
+                  `You are required to play. Click the button below or run \`/queue\` to enter the queue — this will acknowledge your assignment.\n\n` +
+                  `Failing to respond within **24 hours** will result in a warning.`
+                )
+                .setTimestamp(),
+            ],
+            components: [queueRow],
+          });
+
+          // Store thread ID so queueJoin can archive it when the player queues
+          await setForcedMatchThread(player.discordId, thread.id);
+        } catch (threadErr) {
+          console.warn(`[Scheduler] Failed to create forced-assignment thread for ${player.discordUsername}:`, threadErr);
+        }
       }
     }
 

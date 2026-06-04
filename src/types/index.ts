@@ -67,6 +67,8 @@ export const CacheKeys = {
   mirrorRequest: (nonce: string) => `d2r:mirror:req:${nonce}`,
   // Forced match assignment (set by scheduler, cleared by /im-ready)
   forcedMatch: (discordId: string) => `d2r:forced:${discordId}`,
+  // Forced match notification thread ID (set by scheduler, cleared on queue join)
+  forcedMatchThread: (discordId: string) => `d2r:forced:thread:${discordId}`,
   // Leaderboard — stores the Discord message ID of the pinned standings embed
   leaderboardMsgId: () => 'd2r:leaderboard:msgid',
   // Queue button — stores the Discord message ID of the persistent Join Queue embed

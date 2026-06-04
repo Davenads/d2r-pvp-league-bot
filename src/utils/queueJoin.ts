@@ -15,6 +15,8 @@ import {
   setMatchThreadId,
   getForcedMatch,
   clearForcedMatch,
+  getForcedMatchThread,
+  clearForcedMatchThread,
 } from '../services/queue.js';
 import { CHANNELS } from '../config/channels.js';
 import { ROLES } from '../config/roles.js';
@@ -64,7 +66,31 @@ export async function executeQueueJoin(interaction: QueueInteraction): Promise<v
     }
 
     const forcedAssignment = await getForcedMatch(discordId);
-    if (forcedAssignment) await clearForcedMatch(discordId);
+    if (forcedAssignment) {
+      await clearForcedMatch(discordId);
+
+      // Archive the private notification thread if one was created by the scheduler (H1)
+      const notifThreadId = await getForcedMatchThread(discordId);
+      if (notifThreadId) {
+        await clearForcedMatchThread(discordId);
+        try {
+          const notifThread = interaction.client.channels.cache.get(notifThreadId);
+          if (notifThread?.isThread() && !notifThread.archived) {
+            await notifThread.send({
+              embeds: [
+                new EmbedBuilder()
+                  .setColor(Colors.Green)
+                  .setDescription('✅ Assignment acknowledged — player has joined the queue.')
+                  .setTimestamp(),
+              ],
+            });
+            await notifThread.setArchived(true, 'Forced assignment acknowledged').catch(() => undefined);
+          }
+        } catch {
+          // Non-critical — thread may have already been archived or deleted
+        }
+      }
+    }
 
     const outcome = await joinQueue(discordId);
 
