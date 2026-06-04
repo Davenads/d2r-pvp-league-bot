@@ -5,9 +5,6 @@
 
 import {
   EmbedBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
   Colors,
   TextChannel,
   ThreadChannel,
@@ -150,13 +147,6 @@ export async function processMatchResult(
     try {
       const thread = client.channels.cache.get(resolvedThreadId) as ThreadChannel | undefined;
       if (thread?.isThread()) {
-        const archiveRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder()
-            .setCustomId(`archive_thread:${player1.discordId}:${player2.discordId}`)
-            .setLabel('Archive Thread')
-            .setStyle(ButtonStyle.Secondary),
-        );
-
         await thread.send({
           content: `<@${winnerPlayer.discordId}> <@${loserPlayer.discordId}>`,
           embeds: [
@@ -168,11 +158,15 @@ export async function processMatchResult(
                 { name: 'Loser',  value: `<@${loserPlayer.discordId}> (${getClassEmoji(loserBuild)} ${loserBuild})`,   inline: true },
                 { name: 'Type',   value: typeLabel, inline: true },
               )
-              .setFooter({ text: 'GG! Thread auto-archives after 24 hours.' })
+              .setFooter({ text: 'GG! This thread will now be archived.' })
               .setTimestamp(),
           ],
-          components: [archiveRow],
         });
+
+        // Auto-archive the thread immediately after posting the result
+        await thread.setArchived(true, 'Match completed').catch((archiveErr) =>
+          console.warn(`[processMatchResult] Failed to auto-archive thread for match #${match.id}:`, archiveErr)
+        );
       }
     } catch (threadErr) {
       console.warn('[processMatchResult] Failed to post thread result embed:', threadErr);
