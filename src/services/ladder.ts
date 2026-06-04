@@ -225,6 +225,40 @@ export async function reactivatePlayerOnLadder(
 }
 
 /**
+ * Updates a player's build columns and zeros their points (mid-season build change).
+ * W/L history and status are preserved — only builds and points are modified.
+ * Zeroing points moves the player to the bottom of the ranked standings.
+ */
+export async function changePlayerBuildsOnLadder(
+  discordId: string,
+  builds: string[],  // 2–5 canonical build names
+): Promise<void> {
+  const sheets = getWriteClient();
+  const rows = await fetchLadderRaw();
+  const sheetRow = findPlayerRow(rows, discordId);
+
+  if (!sheetRow) {
+    console.warn(`[Ladder] changePlayerBuildsOnLadder: row not found for ${discordId}`);
+    return;
+  }
+
+  const updates: sheets_v4.Schema$ValueRange[] = [
+    { range: `${LADDER_TAB}!D${sheetRow}`, values: [[builds[0] ? abbreviateBuild(builds[0]) : '']] },
+    { range: `${LADDER_TAB}!E${sheetRow}`, values: [[builds[1] ? abbreviateBuild(builds[1]) : '']] },
+    { range: `${LADDER_TAB}!F${sheetRow}`, values: [[builds[2] ? abbreviateBuild(builds[2]) : '']] },
+    { range: `${LADDER_TAB}!G${sheetRow}`, values: [[builds[3] ? abbreviateBuild(builds[3]) : '']] },
+    { range: `${LADDER_TAB}!H${sheetRow}`, values: [[builds[4] ? abbreviateBuild(builds[4]) : '']] },
+    { range: `${LADDER_TAB}!${colLetter(COL.points)}${sheetRow}`, values: [[0]] }, // zero points → bottom of standings
+  ];
+
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: config.google.sheetId,
+    requestBody: { valueInputOption: 'USER_ENTERED', data: updates },
+  });
+  console.log(`[Ladder] changePlayerBuildsOnLadder: updated row ${sheetRow} for ${discordId}`);
+}
+
+/**
  * Resets all stat columns for an existing player row to zero (fresh-start re-registration).
  * Updates builds, username, and status; zeros W/L/Points/TR/DM columns; clears Last_Match.
  */
