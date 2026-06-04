@@ -23,10 +23,12 @@ import { updateLeaderboardEmbed } from './leaderboardEmbed.js';
 import { CHANNELS } from '../config/channels.js';
 import { config } from '../config.js';
 
-const FOUR_HOURS_MS    = 4 * 60 * 60 * 1000;
-const ONE_HOUR_MS      = 60 * 60 * 1000;
-const WARNING_DELAY_MS = 24 * 60 * 60 * 1000;  // 24h after forced assignment before warning
-const THREAD_ARCHIVE_DELAY_MS = 24 * 60 * 60 * 1000;  // 24h after confirmation before auto-archive
+const FOUR_HOURS_MS         = 4 * 60 * 60 * 1000;
+const ONE_HOUR_MS           = 60 * 60 * 1000;
+const TWENTY_FOUR_HOURS_MS  = 24 * 60 * 60 * 1000;
+const WARNING_DELAY_MS      = TWENTY_FOUR_HOURS_MS;  // 24h after forced assignment before warning
+const THREAD_ARCHIVE_DELAY_MS = TWENTY_FOUR_HOURS_MS;  // 24h after confirmation before auto-archive (scheduler fallback)
+const MATCH_REMINDER_DELAY_MS = TWENTY_FOUR_HOURS_MS;  // 24h before reminding players in thread
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 
@@ -59,6 +61,10 @@ export function startScheduler(client: Client): void {
   // Run warning decay every 4 hours (offset by 90 minutes)
   setTimeout(() => runWarningDecay(client), 90 * 60 * 1000);
   setInterval(() => runWarningDecay(client), FOUR_HOURS_MS);
+
+  // Run match reminder every 24 hours (offset by 2 hours to spread load)
+  setTimeout(() => runMatchReminder(client), 2 * 60 * 60 * 1000);
+  setInterval(() => runMatchReminder(client), TWENTY_FOUR_HOURS_MS);
 
   console.log('[Scheduler] Jobs scheduled.');
 }
@@ -106,29 +112,50 @@ async function runCadenceCheck(client: Client): Promise<void> {
       await setForcedMatch(player.discordId, { assignedAt: Date.now() });
       newlyNotified++;
 
-      // Ping them in #1v1-queue
+      const assignmentEmbed = new EmbedBuilder()
+        .setColor(Colors.Yellow)
+        .setTitle('Forced Match Assignment')
+        .setDescription(
+          `<@${player.discordId}>, it's been more than **${config.league.matchCadenceDays} days** since your last match.\n\n` +
+          `You are required to play. Click the button below or run \`/queue\` to enter the queue — this will acknowledge your assignment.\n\n` +
+          `Failing to respond within **24 hours** will result in a warning.`
+        )
+        .setTimestamp();
+
+      const queueRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId('queue_join')
+          .setLabel('⚔️ Join Queue')
+          .setStyle(ButtonStyle.Primary)
+      );
+
+      // Ping in #1v1-queue
       if (queueChannel) {
-        const queueRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder()
-            .setCustomId('queue_join')
-            .setLabel('⚔️ Join Queue')
-            .setStyle(ButtonStyle.Primary)
-        );
         await queueChannel.send({
           content: `<@${player.discordId}>`,
+          embeds: [assignmentEmbed],
+          components: [queueRow],
+        });
+      }
+
+      // Also DM the player so they can't miss it (B3)
+      try {
+        const user = await client.users.fetch(player.discordId);
+        await user.send({
           embeds: [
             new EmbedBuilder()
               .setColor(Colors.Yellow)
-              .setTitle('Forced Match Assignment')
+              .setTitle('D2R 1v1 League — Forced Match Assignment')
               .setDescription(
-                `<@${player.discordId}>, it's been more than **${config.league.matchCadenceDays} days** since your last match.\n\n` +
-                `You are required to play. Click the button below or run \`/queue\` to enter the queue — this will acknowledge your assignment.\n\n` +
+                `It's been more than **${config.league.matchCadenceDays} days** since your last match.\n\n` +
+                `Head to the queue channel and use \`/queue\` to enter — this will acknowledge your assignment.\n\n` +
                 `Failing to respond within **24 hours** will result in a warning.`
               )
               .setTimestamp(),
           ],
-          components: [queueRow],
         });
+      } catch {
+        // DMs may be closed — queue channel post is the fallback
       }
     }
 
@@ -309,7 +336,87 @@ async function runWarningDecay(client: Client): Promise<void> {
   }
 }
 
-// ── Job 4: Thread auto-archive ────────────────────────────────────────────────
+// ── Job 4: Match thread reminder (B2) ────────────────────────────────────────
+
+/**
+ * Finds PENDING matches with a thread that have been open for more than 24 hours
+ * and posts a reminder ping + report-win buttons into the thread.
+ */
+async function runMatchReminder(client: Client): Promise<void> {
+  console.log('[Scheduler] Running match reminder check...');
+
+  try {
+    const cutoff = new Date(Date.now() - MATCH_REMINDER_DELAY_MS);
+
+    const stalePendingMatches = await prisma.match.findMany({
+      where: {
+        status: 'PENDING',
+        threadId: { not: null },
+        reportedAt: { lt: cutoff },
+      },
+      include: {
+        player1: { select: { discordId: true } },
+        player2: { select: { discordId: true } },
+      },
+    });
+
+    let reminded = 0;
+
+    for (const match of stalePendingMatches) {
+      if (!match.threadId) continue;
+      try {
+        const thread = client.channels.cache.get(match.threadId);
+        if (!thread?.isThread() || thread.archived) continue;
+
+        const p1Id = match.player1.discordId;
+        const p2Id = match.player2.discordId;
+
+        const [p1User, p2User] = await Promise.all([
+          client.users.fetch(p1Id).catch(() => null),
+          client.users.fetch(p2Id).catch(() => null),
+        ]);
+        const p1Name = p1User?.displayName ?? 'Player 1';
+        const p2Name = p2User?.displayName ?? 'Player 2';
+
+        const winnerRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`report_win:${match.id}:${p1Id}`)
+            .setLabel(`${p1Name} Won`)
+            .setStyle(ButtonStyle.Success),
+          new ButtonBuilder()
+            .setCustomId(`report_win:${match.id}:${p2Id}`)
+            .setLabel(`${p2Name} Won`)
+            .setStyle(ButtonStyle.Success),
+        );
+
+        await thread.send({
+          content: `<@${p1Id}> <@${p2Id}>`,
+          embeds: [
+            new EmbedBuilder()
+              .setColor(Colors.Yellow)
+              .setTitle('⏰ Match Reminder')
+              .setDescription(
+                `This match has been open for over **24 hours** with no result reported.\n\n` +
+                `Please wrap up your match and click the winner below.`
+              )
+              .setTimestamp(),
+          ],
+          components: [winnerRow],
+        });
+
+        reminded++;
+      } catch (threadErr) {
+        console.warn(`[Scheduler] Failed to post reminder for match #${match.id}:`, threadErr);
+      }
+    }
+
+    console.log(`[Scheduler] Match reminder: ${reminded}/${stalePendingMatches.length} thread(s) reminded.`);
+  } catch (err) {
+    console.error('[Scheduler] Match reminder error:', err);
+  }
+}
+
+// ── Job 5: Thread auto-archive ────────────────────────────────────────────────
 
 async function runThreadCleanup(client: Client): Promise<void> {
   console.log('[Scheduler] Running thread cleanup...');
