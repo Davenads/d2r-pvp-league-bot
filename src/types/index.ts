@@ -80,6 +80,8 @@ export const CacheKeys = {
   leaderboardMsgId: () => 'd2r:leaderboard:msgid',
   // Queue button — stores the Discord message ID of the persistent Join Queue embed
   queueBtnMsgId: () => 'd2r:queue:btn:msgid',
+  // Action panel — stores the Discord message ID of the Register/Join Queue panel in the leaderboard channel
+  actionPanelMsgId: () => 'd2r:action:panel:msgid',
 } as const;
 
 // ── Mirror request type ───────────────────────────────────────────────────────

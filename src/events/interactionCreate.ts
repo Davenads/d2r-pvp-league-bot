@@ -145,6 +145,18 @@ export async function execute(interaction: Interaction): Promise<void> {
       await handleExtendDecline(interaction, payload);
       return;
     }
+
+    if (action === 'action_register') {
+      await interaction.reply({
+        ephemeral: true,
+        content:
+          '**How to Register**\n\n' +
+          'Use the `/register` command and select your build from the autocomplete list.\n' +
+          'You can register up to 5 builds. Pick the ones you plan to play this season.\n\n' +
+          'Once registered, you\'ll appear on the leaderboard and can enter the queue.',
+      });
+      return;
+    }
   }
 }
 
