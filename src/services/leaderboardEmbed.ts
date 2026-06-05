@@ -70,7 +70,7 @@ function buildLeaderboardEmbed(entries: LadderEntry[]): EmbedBuilder {
     sorted.length > 0
       ? sorted.map((e) => {
           const rankLabel = e.rank > 0 && !isNaN(e.rank) ? `#${e.rank}` : '—';
-          return `**${rankLabel}** ${e.discordUsername} *(${e.points} pts)*`;
+          return `**${rankLabel}** ${e.discordUsername}`;
         }).join('\n')
       : '*No active players on the ladder yet.*';
 
