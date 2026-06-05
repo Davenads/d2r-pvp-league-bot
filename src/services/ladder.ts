@@ -329,6 +329,62 @@ export async function updatePlayerLadderStatus(
 }
 
 /**
+ * Writes a half-point ready-check result to the Ladder sheet.
+ *
+ * Winner: +1 W, +0.5 points
+ * Loser:  +1 L, -0.5 points (floored at 0 — no negatives)
+ *
+ * @param winnerDiscordId - Discord snowflake of the RC winner
+ * @param loserDiscordId  - Discord snowflake of the RC loser
+ */
+export async function updateLadderResultHalfPoint(
+  winnerDiscordId: string,
+  loserDiscordId: string,
+): Promise<void> {
+  const sheets = getWriteClient();
+  const rows = await fetchLadderRaw();
+
+  const winnerRow = findPlayerRow(rows, winnerDiscordId);
+  const loserRow  = findPlayerRow(rows, loserDiscordId);
+
+  if (!winnerRow || !loserRow) {
+    console.warn(
+      `[Ladder] updateLadderResultHalfPoint: row not found — ` +
+      `winner: ${winnerRow ? '✓' : '✗'} (${winnerDiscordId}), ` +
+      `loser: ${loserRow ? '✓' : '✗'} (${loserDiscordId})`
+    );
+    return;
+  }
+
+  const today = new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+
+  // Winner: +1 W, +0.5 points
+  const winnerCurrentPts = parseFloat(rows[winnerRow - 1][COL.points] ?? '0') || 0;
+
+  // Loser: +1 L, points = max(0, current - 0.5)
+  const loserCurrentPts  = parseFloat(rows[loserRow - 1][COL.points] ?? '0') || 0;
+  const loserNewPts      = Math.max(0, loserCurrentPts - 0.5);
+
+  const updates: sheets_v4.Schema$ValueRange[] = [
+    makeIncrement(rows, winnerRow, COL.wins),                                           // +1 W
+    makeIncrement(rows, loserRow,  COL.losses),                                         // +1 L
+    { range: `${LADDER_TAB}!${colLetter(COL.points)}${winnerRow}`, values: [[winnerCurrentPts + 0.5]] },
+    { range: `${LADDER_TAB}!${colLetter(COL.points)}${loserRow}`,  values: [[loserNewPts]] },
+    { range: `${LADDER_TAB}!${colLetter(COL.lastMatch)}${winnerRow}`, values: [[today]] },
+    { range: `${LADDER_TAB}!${colLetter(COL.lastMatch)}${loserRow}`,  values: [[today]] },
+  ];
+
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: config.google.sheetId,
+    requestBody: { valueInputOption: 'USER_ENTERED', data: updates },
+  });
+  console.log(
+    `[Ladder] updateLadderResultHalfPoint: winner ${winnerDiscordId} (+0.5 → ${winnerCurrentPts + 0.5}), ` +
+    `loser ${loserDiscordId} (-0.5 → ${loserNewPts})`
+  );
+}
+
+/**
  * Writes confirmed match W/L increments to the Ladder sheet.
  *
  * @param winnerDiscordId - Discord snowflake of the winner
