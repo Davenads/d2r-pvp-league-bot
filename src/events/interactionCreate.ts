@@ -555,6 +555,16 @@ async function handleRcCheckin(interaction: ButtonInteraction, payload: string):
           .setFooter({ text: 'Keep checking in to stay ahead of your opponent.' }),
       ],
     });
+
+    // Ping the opponent publicly in the thread so they know their match partner is ready
+    const opponentId =
+      clickerId === match.player1.discordId ? match.player2.discordId : match.player1.discordId;
+
+    if (interaction.channel && 'send' in interaction.channel) {
+      await interaction.channel.send(
+        `<@${opponentId}> — <@${clickerId}> has checked in and is ready to play. (Check-in #${result.count})`
+      );
+    }
   } catch (err) {
     console.error('[rc_checkin]', err);
     await interaction.editReply({ embeds: [buildErrorEmbed('Failed to record ready check. Try again.')] });
