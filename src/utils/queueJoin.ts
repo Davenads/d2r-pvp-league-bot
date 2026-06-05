@@ -150,6 +150,10 @@ export async function executeQueueJoin(interaction: QueueInteraction): Promise<v
                 console.warn(`[queueJoin] Could not add mod ${modId} to thread`);
               });
             }
+            // Ping the mod role so all mods receive a notification
+            await thread.send({ content: `<@&${ROLES.mod}>` }).catch(() => {
+              console.warn('[queueJoin] Could not post mod ping in thread');
+            });
           }
         }
 

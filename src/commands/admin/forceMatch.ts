@@ -128,6 +128,10 @@ export const command: Command = {
                   console.warn(`[/admin-forcematch] Could not add mod ${modId} to thread`);
                 });
               }
+              // Ping the mod role so all mods receive a notification
+              await thread.send({ content: `<@&${ROLES.mod}>` }).catch(() => {
+                console.warn('[/admin-forcematch] Could not post mod ping in thread');
+              });
             }
           }
         } catch (threadErr) {
