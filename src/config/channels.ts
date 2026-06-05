@@ -13,6 +13,7 @@ export const CHANNELS = {
   matchThreads:  '1491240439708123228', // 1v1-match-results (thread parent merged)
   announcements: '1491240168294977617', // 1v1-announcements
   signUpHere:    '1491240398268403934', // 1v1-queue (sign-up-here merged into queue)
+  chat:          '1491240474705399950', // 1v1-chat
 } as const;
 
 export type ChannelKey = keyof typeof CHANNELS;

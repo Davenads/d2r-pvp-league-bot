@@ -19,7 +19,7 @@ import type { Client, TextChannel } from 'discord.js';
 import { EmbedBuilder, Colors, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType } from 'discord.js';
 import type { ThreadChannel } from 'discord.js';
 import { prisma } from '../db/client.js';
-import { getForcedMatch, setForcedMatch, clearForcedMatch, setForcedMatchThread } from './queue.js';
+import { getForcedMatch, setForcedMatch, clearForcedMatch, setForcedMatchThread, getQueueList } from './queue.js';
 import { updateLeaderboardEmbed } from './leaderboardEmbed.js';
 import { resolveMatchByReadyCheck } from './readyCheck.js';
 import { CHANNELS } from '../config/channels.js';
@@ -73,6 +73,10 @@ export function startScheduler(client: Client): void {
   // Run ready check deadline resolution every hour (offset by 45 minutes to spread load)
   setTimeout(() => runReadyCheckDeadlines(client), 45 * 60 * 1000);
   setInterval(() => runReadyCheckDeadlines(client), ONE_HOUR_MS);
+
+  // Queue nudge: fire at 22:00 UTC (6 PM EST) and 02:00 UTC (10 PM EST) daily
+  scheduleDaily(22, 0, () => runQueueNudge(client));
+  scheduleDaily(2,  0, () => runQueueNudge(client));
 
   console.log('[Scheduler] Jobs scheduled.');
 }
@@ -523,6 +527,74 @@ async function runReadyCheckDeadlines(client: Client): Promise<void> {
     console.log(`[Scheduler] Ready check deadlines: processed ${expired.length} match(es).`);
   } catch (err) {
     console.error('[Scheduler] Ready check deadline error:', err);
+  }
+}
+
+// ── Helper: schedule a recurring daily job at a specific UTC hour:minute ──────
+
+/**
+ * Fires `fn` at the next occurrence of `utcHour:utcMinute` UTC, then every 24h after that.
+ */
+function scheduleDaily(utcHour: number, utcMinute: number, fn: () => void): void {
+  const msUntilNext = (): number => {
+    const now = new Date();
+    const next = new Date();
+    next.setUTCHours(utcHour, utcMinute, 0, 0);
+    if (next.getTime() <= now.getTime()) {
+      next.setUTCDate(next.getUTCDate() + 1);
+    }
+    return next.getTime() - now.getTime();
+  };
+
+  const schedule = (): void => {
+    setTimeout(() => {
+      fn();
+      setInterval(fn, 24 * 60 * 60 * 1000);
+    }, msUntilNext());
+  };
+
+  schedule();
+}
+
+// ── Job 7: Queue nudge ────────────────────────────────────────────────────────
+
+/**
+ * Posts a "Looking for a Match?" embed + Join Queue button in #1v1-chat.
+ * Skipped if the queue already has active players (they're already engaged).
+ */
+async function runQueueNudge(client: Client): Promise<void> {
+  console.log('[Scheduler] Running queue nudge...');
+
+  try {
+    // Skip if there are already players queued
+    const queued = await getQueueList();
+    if (queued.length > 0) {
+      console.log(`[Scheduler] Queue nudge: skipped — ${queued.length} player(s) already in queue.`);
+      return;
+    }
+
+    const chatChannel = client.channels.cache.get(CHANNELS.chat) as TextChannel | undefined;
+    if (!chatChannel) {
+      console.warn('[Scheduler] Queue nudge: #1v1-chat channel not found in cache.');
+      return;
+    }
+
+    const nudgeEmbed = new EmbedBuilder()
+      .setColor(Colors.Blue)
+      .setTitle('Looking for a Match?')
+      .setDescription('The 1v1 queue is open. Click below to jump in and get paired.');
+
+    const queueRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId('queue_join')
+        .setLabel('⚔️ Join Queue')
+        .setStyle(ButtonStyle.Primary),
+    );
+
+    await chatChannel.send({ embeds: [nudgeEmbed], components: [queueRow] });
+    console.log('[Scheduler] Queue nudge posted.');
+  } catch (err) {
+    console.error('[Scheduler] Queue nudge error:', err);
   }
 }
 
