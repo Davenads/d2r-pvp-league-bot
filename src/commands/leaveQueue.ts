@@ -6,7 +6,7 @@ import {
 } from 'discord.js';
 import type { Command } from '../types/index.js';
 import { buildErrorEmbed, CAIN_EMOJI } from '../utils/formatters.js';
-import { getPlayerState, leaveQueue } from '../services/queue.js';
+import { getQueuePosition, leaveQueue } from '../services/queue.js';
 
 export const command: Command = {
   data: new SlashCommandBuilder()
@@ -19,16 +19,9 @@ export const command: Command = {
     const discordId = interaction.user.id;
 
     try {
-      const state = await getPlayerState(discordId);
+      const queuePosition = await getQueuePosition(discordId);
 
-      if (state === 'in_match') {
-        await interaction.editReply({
-          embeds: [buildErrorEmbed("You're currently in an active match — you can't leave the queue. Report the result with `/report-win` or contact a mod.")],
-        });
-        return;
-      }
-
-      if (state !== 'queued') {
+      if (queuePosition === 0) {
         await interaction.editReply({
           embeds: [buildErrorEmbed("You aren't in the queue.")],
         });

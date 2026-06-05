@@ -174,12 +174,15 @@ export async function getQueuePosition(discordId: string): Promise<number> {
   return idx === -1 ? 0 : idx + 1;
 }
 
-/** Removes a player from the queue. Returns true if they were removed. */
+/** Removes a player from the queue. Returns true if they were removed.
+ *  If the player is still in active match(es), restores their state to
+ *  `in_match` rather than `idle` (supports concurrent match scenario). */
 export async function leaveQueue(discordId: string): Promise<boolean> {
   const redis = getRedisClient();
   const removed = await redis.lrem(CacheKeys.queue(), 0, discordId);
   if (removed > 0) {
-    await setPlayerState(discordId, 'idle');
+    const stillInMatch = await hasActiveMatches(discordId);
+    await setPlayerState(discordId, stillInMatch ? 'in_match' : 'idle');
     return true;
   }
   return false;
