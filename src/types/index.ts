@@ -70,6 +70,12 @@ export const CacheKeys = {
   forcedMatch: (discordId: string) => `d2r:forced:${discordId}`,
   // Forced match notification thread ID (set by scheduler, cleared on queue join)
   forcedMatchThread: (discordId: string) => `d2r:forced:thread:${discordId}`,
+  // Ready check — per-player click count and last-click timestamp per match
+  matchRcCount:   (matchId: number, discordId: string) => `d2r:match:rc:${matchId}:${discordId}`,
+  matchRcLast:    (matchId: number, discordId: string) => `d2r:match:rc:last:${matchId}:${discordId}`,
+  // Extend match — pending request and one-extension flag per match
+  matchExtendReq: (matchId: number) => `d2r:match:extend:req:${matchId}`,
+  matchExtended:  (matchId: number) => `d2r:match:extended:${matchId}`,
   // Leaderboard — stores the Discord message ID of the pinned standings embed
   leaderboardMsgId: () => 'd2r:leaderboard:msgid',
   // Queue button — stores the Discord message ID of the persistent Join Queue embed
