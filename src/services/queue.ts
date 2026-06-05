@@ -1,10 +1,10 @@
 /**
  * Queue service — manages FIFO match queue and active match state in Redis.
  *
- * Queue key:   d2r:queue                       Redis list (RPUSH to enqueue, LPOP to dequeue)
- * State key:   d2r:player:{discordId}:state    "idle" | "queued" | "in_match"
- * Match key:   d2r:match:active:{discordId}    ActiveMatchState JSON (set for both players)
- * Farming key: d2r:farming:{sortedPair}        Counter with TTL
+ * Queue key:        d2r:queue                          Redis list (RPUSH to enqueue, LPOP to dequeue)
+ * State key:        d2r:player:{discordId}:state       "idle" | "queued" | "in_match"
+ * Active match SET: d2r:matches:active:{discordId}     Redis SET of active match IDs (strings)
+ * Farming key:      d2r:farming:{sortedPair}           Counter with TTL
  */
 
 import { prisma } from '../db/client.js';
@@ -14,7 +14,6 @@ import { getDeathmatches } from './content.js';
 import {
   CacheKeys,
   type PlayerQueueState,
-  type ActiveMatchState,
   type MirrorRequest,
   type BuildPairing,
   type MatchFound,
@@ -37,40 +36,6 @@ export async function setPlayerState(discordId: string, state: PlayerQueueState)
   } else {
     await redis.set(CacheKeys.playerState(discordId), state);
   }
-}
-
-// ── Active match state ────────────────────────────────────────────────────────
-
-export async function getActiveMatch(discordId: string): Promise<ActiveMatchState | null> {
-  const redis = getRedisClient();
-  const raw = await redis.get(CacheKeys.activeMatch(discordId));
-  if (!raw) return null;
-  return JSON.parse(raw) as ActiveMatchState;
-}
-
-export async function setActiveMatch(matchState: ActiveMatchState): Promise<void> {
-  const redis = getRedisClient();
-  const json = JSON.stringify(matchState);
-  await redis.set(CacheKeys.activeMatch(matchState.player1DiscordId), json);
-  await redis.set(CacheKeys.activeMatch(matchState.player2DiscordId), json);
-}
-
-/** Update the threadId on an already-active match (called after thread creation). */
-export async function setMatchThreadId(discordId: string, threadId: string): Promise<void> {
-  const match = await getActiveMatch(discordId);
-  if (!match) return;
-  const updated: ActiveMatchState = { ...match, threadId };
-  await setActiveMatch(updated);
-}
-
-export async function clearActiveMatch(discordId: string): Promise<void> {
-  const match = await getActiveMatch(discordId);
-  if (!match) return;
-  const redis = getRedisClient();
-  await redis.del(
-    CacheKeys.activeMatch(match.player1DiscordId),
-    CacheKeys.activeMatch(match.player2DiscordId),
-  );
 }
 
 // ── Concurrent active match helpers (SET-based) ───────────────────────────────

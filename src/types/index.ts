@@ -59,8 +59,6 @@ export const CacheKeys = {
   // Queue / match state
   queue: () => 'd2r:queue',
   playerState: (discordId: string) => `d2r:player:${discordId}:state`,
-  // @deprecated — single-match blob key, superseded by activeMatchSet. No longer written; kept for reference during migration.
-  activeMatch: (discordId: string) => `d2r:match:active:${discordId}`,
   // Concurrent match support — Redis SET of active match IDs (as strings) per player
   activeMatchSet: (discordId: string) => `d2r:matches:active:${discordId}`,
   farmingPair: (a: string, b: string) => {
@@ -89,16 +87,6 @@ export interface MirrorRequest {
 // ── Queue / match state types ────────────────────────────────────────────────
 
 export type PlayerQueueState = 'idle' | 'queued' | 'in_match';
-
-export interface ActiveMatchState {
-  matchId: number;             // Postgres Match.id
-  player1DiscordId: string;
-  player2DiscordId: string;
-  build1: string;              // player1's build for this match
-  build2: string;              // player2's build for this match
-  threadId?: string;           // filled in after thread creation
-  createdAt: number;           // unix ms
-}
 
 /** A build pairing candidate — includes match type for deathmatch detection */
 export interface BuildPairing {
