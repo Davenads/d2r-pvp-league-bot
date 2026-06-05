@@ -11,7 +11,7 @@ import {
 } from 'discord.js';
 import type { Client } from 'discord.js';
 import { prisma } from '../db/client.js';
-import { clearActiveMatch, setPlayerState } from '../services/queue.js';
+import { removeActiveMatch, resolvePlayerStateAfterMatch } from '../services/queue.js';
 import { updateLadderResult } from '../services/ladder.js';
 import { cacheDel } from '../services/cache.js';
 import { CacheKeys } from '../types/index.js';
@@ -114,9 +114,9 @@ export async function processMatchResult(
 
   // ── Clear Redis match state ─────────────────────────────────────────────────
 
-  await clearActiveMatch(reporterId);
-  await setPlayerState(winnerPlayer.discordId, 'idle');
-  await setPlayerState(loserPlayer.discordId, 'idle');
+  await removeActiveMatch(match.id, player1.discordId, player2.discordId);
+  await resolvePlayerStateAfterMatch(player1.discordId);
+  await resolvePlayerStateAfterMatch(player2.discordId);
 
   // ── Post to #1v1-match-results ──────────────────────────────────────────────
 
