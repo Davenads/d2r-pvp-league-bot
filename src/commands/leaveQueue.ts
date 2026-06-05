@@ -2,6 +2,9 @@ import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   Colors,
 } from 'discord.js';
 import type { Command } from '../types/index.js';
@@ -37,14 +40,22 @@ export const command: Command = {
         return;
       }
 
+      const rejoinRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId('queue_join')
+          .setLabel('Join Queue')
+          .setStyle(ButtonStyle.Primary),
+      );
+
       await interaction.editReply({
         embeds: [
           new EmbedBuilder()
             .setColor(Colors.Yellow)
             .setTitle(`${CAIN_EMOJI} Left Queue`)
-            .setDescription("You've been removed from the queue. Use `/queue` to re-enter when ready.")
+            .setDescription("You've been removed from the queue. Click below or use `/queue` to re-enter when ready.")
             .setTimestamp(),
         ],
+        components: [rejoinRow],
       });
     } catch (err) {
       console.error('[/leave-queue]', err);
