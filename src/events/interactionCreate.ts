@@ -13,18 +13,14 @@ import { processMatchResult } from '../utils/matchResult.js';
 import { executeQueueJoin } from '../utils/queueJoin.js';
 import { prisma } from '../db/client.js';
 import {
-  clearActiveMatch,
-  setPlayerState,
   getMirrorRequest,
   deleteMirrorRequest,
   startMirrorMatch,
-  setMatchThreadId,
-  setActiveMatch,
+  addActiveMatch,
   getAllowedMatchups,
   selectRandomPairing,
   reQueueBothPlayers,
 } from '../services/queue.js';
-import type { ActiveMatchState } from '../types/index.js';
 import { CHANNELS } from '../config/channels.js';
 import { postAllBannedEmbed, postMatchAnnouncementEmbed } from '../utils/matchupUI.js';
 import type { MatchType } from '@prisma/client';
@@ -326,24 +322,14 @@ async function handleOverrideBanned(interaction: ButtonInteraction, payload: str
       },
     });
 
-    // Set ActiveMatchState in Redis
-    const matchState: ActiveMatchState = {
-      matchId: match.id,
-      player1DiscordId: p1Id,
-      player2DiscordId: p2Id,
-      build1: selected.build1,
-      build2: selected.build2,
-      createdAt: Date.now(),
-    };
-    await setActiveMatch(matchState);
+    // Register match in both players' active match SETs
+    await addActiveMatch(match.id, p1Id, p2Id);
 
     // Post announcement in thread
     const thread = interaction.channel as ThreadChannel | null;
     if (thread?.isThread()) {
       // Update threadId in match record
       await prisma.match.update({ where: { id: match.id }, data: { threadId: thread.id } });
-      const updatedState: ActiveMatchState = { ...matchState, threadId: thread.id };
-      await setActiveMatch(updatedState);
 
       await postMatchAnnouncementEmbed(
         thread,
@@ -435,7 +421,6 @@ async function handleMirrorAccept(interaction: ButtonInteraction, nonce: string)
           ],
         });
 
-        await setMatchThreadId(req.requesterId, threadId);
         await prisma.match.update({ where: { id: matchId }, data: { threadId } });
       } catch (threadErr) {
         console.warn('[mirror_accept] Failed to create thread:', threadErr);
