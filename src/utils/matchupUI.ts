@@ -94,7 +94,7 @@ export async function postMatchAnnouncementEmbed(
     : 'Match type: **Standard (FT4)**';
 
   const tournamentNote = isTournament
-    ? '\n\nThis is a **tournament match** — Winner **+3 pts** | Loser **+1 pt**.'
+    ? '\n\nThis is a **tournament match** — Winner **+2 pts** | Loser **+1 pt**.'
     : '';
 
   const embed = new EmbedBuilder()

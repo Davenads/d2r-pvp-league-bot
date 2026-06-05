@@ -4,7 +4,7 @@
  * Mod-only command to create a tournament match between two registered players.
  * - Computes all allowed build pairings via getAllowedMatchups
  * - Bot randomly selects one pairing and creates the Prisma Match record immediately
- * - Match type stored in Prisma is TOURNAMENT (winner +3, loser +1)
+ * - Match type stored in Prisma is TOURNAMENT (winner +2, loser +1)
  * - If all pairings are banned, shows override prompt
  */
 
@@ -35,7 +35,7 @@ import { postAllBannedEmbed, postMatchAnnouncementEmbed } from '../../utils/matc
 export const command: Command = {
   data: new SlashCommandBuilder()
     .setName('admin-forcematch')
-    .setDescription('Force a tournament match between two players — winner +3 pts, loser +1 pt (mod only)')
+    .setDescription('Force a tournament match between two players — winner +2 pts, loser +1 pt (mod only)')
     .addUserOption((opt) =>
       opt.setName('player1').setDescription('First player').setRequired(true)
     )
@@ -218,7 +218,7 @@ export const command: Command = {
               .setDescription(
                 `<@${p1User.id}> vs <@${p2User.id}>\n` +
                 `**Matchup:** ${selected.build1} vs ${selected.build2}\n` +
-                `**Points:** Winner **+3** | Loser **+1**` +
+                `**Points:** Winner **+2** | Loser **+1**` +
                 (thread ? `\n\n**Thread:** <#${thread.id}>` : '')
               )
               .setTimestamp(),
@@ -258,7 +258,7 @@ export const command: Command = {
               `**Matchup:** ${selected.build1} vs ${selected.build2}` +
               (thread ? `\n\n**Thread:** <#${thread.id}>` : '')
             )
-            .setFooter({ text: 'Winner +3 pts | Loser +1 pt — applied on result confirm.' })
+            .setFooter({ text: 'Winner +2 pts | Loser +1 pt — applied on result confirm.' })
             .setTimestamp(),
         ],
       });

@@ -428,7 +428,7 @@ export async function updateLadderResult(
   } else if (matchType === 'TOURNAMENT') {
     updates.push(makeIncrement(rows, winnerRow, COL.wins));       // counts toward regular W
     updates.push(makeIncrement(rows, loserRow, COL.losses));      // counts toward regular L
-    updates.push(makeIncrement(rows, winnerRow, COL.points, 3));  // +3 pts winner
+    updates.push(makeIncrement(rows, winnerRow, COL.points, 2));  // +2 pts winner
     updates.push(makeIncrement(rows, loserRow, COL.points, 1));   // +1 pt loser
   }
 

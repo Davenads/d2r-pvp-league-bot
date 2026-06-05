@@ -68,7 +68,7 @@ const FAQ_ENTRIES: FaqEntry[] = [
       '• **Standard match (FT4):** Win = +1 pt\n' +
       '• **Deathmatch (FT2):** Win = +1 pt\n' +
       '• **Test Rule match:** Win = +1 pt (tracked separately)\n' +
-      '• **Tournament match:** Win = +3 pts, Loss = +1 pt\n\n' +
+      '• **Tournament match:** Win = +2 pts, Loss = +1 pt\n\n' +
       '⚠️ Points and W/L stats are **not publicly displayed** on `/ladder`. Only your rank and name are shown — this keeps competition focused on playing, not scoreboard anxiety.',
   },
   {
