@@ -11,7 +11,7 @@ import { buildErrorEmbed, CAIN_EMOJI } from '../../utils/formatters.js';
 import { prisma } from '../../db/client.js';
 import { CHANNELS } from '../../config/channels.js';
 import { assertModRole } from '../../utils/modGuard.js';
-import { clearActiveMatch, setPlayerState, getActiveMatch } from '../../services/queue.js';
+import { removeActiveMatch, resolvePlayerStateAfterMatch } from '../../services/queue.js';
 
 export const command: Command = {
   data: new SlashCommandBuilder()
@@ -69,19 +69,13 @@ export const command: Command = {
         data: { status: 'VOIDED' },
       });
 
-      // Clear Redis active match state — clearActiveMatch reads from one player's key
-      // and deletes both. Try player1 first; fall back to player2 if no state found.
-      const activeState = await getActiveMatch(player1.discordId);
-      if (activeState) {
-        await clearActiveMatch(player1.discordId);
-      } else {
-        await clearActiveMatch(player2.discordId);
-      }
+      // Remove this match from both players' active match SETs
+      await removeActiveMatch(matchId, player1.discordId, player2.discordId);
 
-      // Set both players back to idle
+      // Conditionally return players to idle (respects queued state and remaining matches)
       await Promise.all([
-        setPlayerState(player1.discordId, 'idle'),
-        setPlayerState(player2.discordId, 'idle'),
+        resolvePlayerStateAfterMatch(player1.discordId),
+        resolvePlayerStateAfterMatch(player2.discordId),
       ]);
 
       // Archive the match thread if it exists

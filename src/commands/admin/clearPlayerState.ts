@@ -16,7 +16,9 @@ import {
 } from 'discord.js';
 import type { Command } from '../../types/index.js';
 import { buildErrorEmbed, EMBED_COLORS, CAIN_EMOJI } from '../../utils/formatters.js';
-import { getPlayerState, setPlayerState, clearActiveMatch, leaveQueue } from '../../services/queue.js';
+import { getPlayerState, setPlayerState, leaveQueue } from '../../services/queue.js';
+import { getRedisClient } from '../../services/cache.js';
+import { CacheKeys } from '../../types/index.js';
 import { CHANNELS } from '../../config/channels.js';
 import { assertModRole } from '../../utils/modGuard.js';
 
@@ -50,15 +52,16 @@ export const command: Command = {
         removedFromQueue = await leaveQueue(targetUser.id);
       }
 
-      // Clear active match state (no-op if none exists)
-      await clearActiveMatch(targetUser.id);
+      // Delete the player's active match SET (emergency override — other players' SETs unaffected)
+      const redis = getRedisClient();
+      await redis.del(CacheKeys.activeMatchSet(targetUser.id));
 
       // Reset to idle
       await setPlayerState(targetUser.id, 'idle');
 
       const cleared: string[] = [];
       if (stateBefore === 'queued') cleared.push(`removed from queue (${removedFromQueue ? 'success' : 'not found in list'})`);
-      if (stateBefore === 'in_match') cleared.push('active match state cleared');
+      if (stateBefore === 'in_match') cleared.push('active match SET cleared');
       cleared.push('state set to idle');
 
       await interaction.editReply({

@@ -9,7 +9,7 @@ import {
 import type { Command } from '../../types/index.js';
 import { buildErrorEmbed, EMBED_COLORS, CAIN_EMOJI } from '../../utils/formatters.js';
 import { prisma } from '../../db/client.js';
-import { clearActiveMatch, setPlayerState } from '../../services/queue.js';
+import { removeActiveMatch, resolvePlayerStateAfterMatch } from '../../services/queue.js';
 import { updateLadderResult } from '../../services/ladder.js';
 import { CHANNELS } from '../../config/channels.js';
 import { assertModRole } from '../../utils/modGuard.js';
@@ -138,10 +138,10 @@ export const command: Command = {
         console.error('[/admin-set-result] Sheet write-back failed:', sheetErr);
       }
 
-      // Clear Redis state for both players
-      await clearActiveMatch(winnerRecord.discordId);
-      await setPlayerState(winnerRecord.discordId, 'idle');
-      await setPlayerState(loserRecord.discordId, 'idle');
+      // Remove this match from both players' active match SETs
+      await removeActiveMatch(match.id, winnerRecord.discordId, loserRecord.discordId);
+      await resolvePlayerStateAfterMatch(winnerRecord.discordId);
+      await resolvePlayerStateAfterMatch(loserRecord.discordId);
 
       const typeLabel = matchTypeRaw.replace('_', ' ');
 
