@@ -5,7 +5,6 @@ import {
 import type { Command } from '../types/index.js';
 import { buildErrorEmbed } from '../utils/formatters.js';
 import { prisma } from '../db/client.js';
-import { getActiveMatch } from '../services/queue.js';
 import { processMatchResult } from '../utils/matchResult.js';
 
 export const command: Command = {
@@ -32,33 +31,45 @@ export const command: Command = {
     const reporterDiscordId = interaction.user.id;
 
     try {
-      // Verify reporter is in an active match
-      const activeMatch = await getActiveMatch(reporterDiscordId);
-      if (!activeMatch) {
-        await interaction.editReply({
-          embeds: [buildErrorEmbed("You don't have an active match. Use `/queue` to find an opponent.")],
-        });
+      // Find the PENDING match between the reporter and the declared winner
+      const season = await prisma.season.findFirst({ where: { active: true } });
+      if (!season) {
+        await interaction.editReply({ embeds: [buildErrorEmbed('No active season.')] });
         return;
       }
 
-      // Verify the named winner is one of the two participants
-      const { player1DiscordId, player2DiscordId, matchId } = activeMatch;
-      if (winner.id !== player1DiscordId && winner.id !== player2DiscordId) {
+      const match = await prisma.match.findFirst({
+        where: {
+          seasonId: season.id,
+          status: 'PENDING',
+          OR: [
+            {
+              player1: { discordId: reporterDiscordId },
+              player2: { discordId: winner.id },
+            },
+            {
+              player2: { discordId: reporterDiscordId },
+              player1: { discordId: winner.id },
+            },
+          ],
+        },
+        include: { player1: true, player2: true },
+      });
+
+      if (!match) {
         await interaction.editReply({
-          embeds: [buildErrorEmbed(
-            `<@${winner.id}> is not a participant in your active match.\n\nYour match is between <@${player1DiscordId}> and <@${player2DiscordId}>.`
-          )],
+          embeds: [buildErrorEmbed(`No active match found between you and <@${winner.id}>. Check that you named the correct opponent.`)],
         });
         return;
       }
 
       const result = await processMatchResult(
         interaction.client,
-        matchId,
+        match.id,
         winner.id,
         reporterDiscordId,
         isTestRule,
-        activeMatch.threadId,
+        match.threadId,
       );
 
       if (!result.success) {
