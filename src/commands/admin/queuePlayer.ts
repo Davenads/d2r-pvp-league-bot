@@ -18,7 +18,7 @@ import type { ThreadChannel } from 'discord.js';
 import type { Command } from '../../types/index.js';
 import { buildErrorEmbed, EMBED_COLORS, CAIN_EMOJI } from '../../utils/formatters.js';
 import { prisma } from '../../db/client.js';
-import { joinQueue, getPlayerState, setMatchThreadId } from '../../services/queue.js';
+import { joinQueue, getPlayerState } from '../../services/queue.js';
 import { postAllBannedEmbed, postMatchAnnouncementEmbed } from '../../utils/matchupUI.js';
 import { CHANNELS } from '../../config/channels.js';
 import { assertModRole } from '../../utils/modGuard.js';
@@ -139,7 +139,6 @@ export const command: Command = {
           await thread.members.add(opponentDiscordId);
 
           if (matchId > 0) {
-            await setMatchThreadId(targetUser.id, thread.id);
             await prisma.match.update({ where: { id: matchId }, data: { threadId: thread.id } });
           }
 

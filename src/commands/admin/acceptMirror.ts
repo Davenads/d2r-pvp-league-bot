@@ -22,7 +22,6 @@ import {
   findMirrorRequestByOpponent,
   deleteMirrorRequest,
   startMirrorMatch,
-  setMatchThreadId,
 } from '../../services/queue.js';
 import { CHANNELS } from '../../config/channels.js';
 import { assertModRole } from '../../utils/modGuard.js';
@@ -106,7 +105,6 @@ export const command: Command = {
             ],
           });
 
-          await setMatchThreadId(req.requesterId, threadId);
           await prisma.match.update({ where: { id: matchId }, data: { threadId } });
         } catch (threadErr) {
           console.warn('[/admin-accept-mirror] Failed to create thread:', threadErr);

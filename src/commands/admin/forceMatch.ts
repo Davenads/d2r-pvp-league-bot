@@ -25,9 +25,8 @@ import {
   selectRandomPairing,
   setPlayerState,
   getPlayerState,
-  setActiveMatch,
+  addActiveMatch,
 } from '../../services/queue.js';
-import type { ActiveMatchState } from '../../types/index.js';
 import { CHANNELS } from '../../config/channels.js';
 import { ROLES } from '../../config/roles.js';
 import { assertModRole } from '../../utils/modGuard.js';
@@ -193,17 +192,8 @@ export const command: Command = {
         },
       });
 
-      // Set ActiveMatchState in Redis
-      const matchState: ActiveMatchState = {
-        matchId: match.id,
-        player1DiscordId: p1User.id,
-        player2DiscordId: p2User.id,
-        build1: selected.build1,
-        build2: selected.build2,
-        createdAt: Date.now(),
-        threadId: thread?.id,
-      };
-      await setActiveMatch(matchState);
+      // Register match in both players' active match SETs
+      await addActiveMatch(match.id, p1User.id, p2User.id);
 
       // Post match announcement in thread
       if (thread) {
