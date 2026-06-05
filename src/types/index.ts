@@ -59,7 +59,10 @@ export const CacheKeys = {
   // Queue / match state
   queue: () => 'd2r:queue',
   playerState: (discordId: string) => `d2r:player:${discordId}:state`,
+  // @deprecated — single-match blob key, superseded by activeMatchSet. No longer written; kept for reference during migration.
   activeMatch: (discordId: string) => `d2r:match:active:${discordId}`,
+  // Concurrent match support — Redis SET of active match IDs (as strings) per player
+  activeMatchSet: (discordId: string) => `d2r:matches:active:${discordId}`,
   farmingPair: (a: string, b: string) => {
     const [x, y] = [a, b].sort();
     return `d2r:farming:${x}:${y}`;

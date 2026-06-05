@@ -73,6 +73,64 @@ export async function clearActiveMatch(discordId: string): Promise<void> {
   );
 }
 
+// ── Concurrent active match helpers (SET-based) ───────────────────────────────
+// Replace the single JSON-blob active match keys above with a Redis SET per player.
+// Each SET entry is a match ID (stored as a string). Match details come from Prisma.
+
+/** Add a match ID to both players' active match SETs. */
+export async function addActiveMatch(matchId: number, p1DiscordId: string, p2DiscordId: string): Promise<void> {
+  const redis = getRedisClient();
+  const id = String(matchId);
+  await Promise.all([
+    redis.sadd(CacheKeys.activeMatchSet(p1DiscordId), id),
+    redis.sadd(CacheKeys.activeMatchSet(p2DiscordId), id),
+  ]);
+}
+
+/** Remove a specific match ID from both players' active match SETs. */
+export async function removeActiveMatch(matchId: number, p1DiscordId: string, p2DiscordId: string): Promise<void> {
+  const redis = getRedisClient();
+  const id = String(matchId);
+  await Promise.all([
+    redis.srem(CacheKeys.activeMatchSet(p1DiscordId), id),
+    redis.srem(CacheKeys.activeMatchSet(p2DiscordId), id),
+  ]);
+}
+
+/** Return all active match IDs for a player. Empty array = none. */
+export async function getActiveMatchIds(discordId: string): Promise<number[]> {
+  const redis = getRedisClient();
+  const members = await redis.smembers(CacheKeys.activeMatchSet(discordId));
+  return members.map((m) => parseInt(m, 10));
+}
+
+/** Returns true if the player has at least one entry in their active match SET. */
+export async function hasActiveMatches(discordId: string): Promise<boolean> {
+  const redis = getRedisClient();
+  const count = await redis.scard(CacheKeys.activeMatchSet(discordId));
+  return count > 0;
+}
+
+/**
+ * Resolves a player's state after a match result is processed.
+ *
+ * Rules:
+ *  - If the player is currently `queued` — leave them alone (they re-queued mid-match).
+ *  - If the player has no remaining active matches — set to `idle`.
+ *  - Otherwise — leave as `in_match` (more matches pending).
+ *
+ * Called by processMatchResult, /admin-cancel-match, and /admin-set-result.
+ */
+export async function resolvePlayerStateAfterMatch(discordId: string): Promise<void> {
+  const currentState = await getPlayerState(discordId);
+  if (currentState === 'queued') return;  // re-queued mid-match — preserve state
+  const stillActive = await hasActiveMatches(discordId);
+  if (!stillActive) {
+    await setPlayerState(discordId, 'idle');
+  }
+  // else: in_match with remaining matches — leave state unchanged
+}
+
 // ── Farming cap ───────────────────────────────────────────────────────────────
 
 /**
