@@ -14,7 +14,7 @@ import {
 } from 'discord.js';
 import type { Command } from '../../types/index.js';
 import { buildErrorEmbed, EMBED_COLORS, CAIN_EMOJI } from '../../utils/formatters.js';
-import { getPlayerState, getActiveMatch, getQueuePosition } from '../../services/queue.js';
+import { getPlayerState, getActiveMatchIds, getQueuePosition } from '../../services/queue.js';
 import { prisma } from '../../db/client.js';
 import { assertModRole } from '../../utils/modGuard.js';
 
@@ -42,13 +42,11 @@ export const command: Command = {
     try {
       // Redis state
       const redisState = await getPlayerState(targetUser.id);
-      const activeMatch = await getActiveMatch(targetUser.id);
+      const activeMatchIds = await getActiveMatchIds(targetUser.id);
 
-      let queuePosition = '-';
-      if (redisState === 'queued') {
-        const pos = await getQueuePosition(targetUser.id);
-        queuePosition = pos > 0 ? `#${pos}` : 'In queue (position unknown)';
-      }
+      // Always check queue position — with concurrent matches a player can be in_match AND queued
+      const queuePos = await getQueuePosition(targetUser.id);
+      const queuePosition = queuePos > 0 ? `#${queuePos}` : '-';
 
       // Postgres player record
       const season = await prisma.season.findFirst({ where: { active: true } });
@@ -73,15 +71,15 @@ export const command: Command = {
           { name: 'Queue Position', value: queuePosition, inline: true },
         );
 
-      // Active match info
-      if (activeMatch) {
-        embed.addFields(
-          { name: 'Active Match ID', value: String(activeMatch.matchId), inline: true },
-          { name: 'Opponent', value: `<@${activeMatch.player1DiscordId === targetUser.id ? activeMatch.player2DiscordId : activeMatch.player1DiscordId}>`, inline: true },
-          { name: 'Thread', value: activeMatch.threadId ? `<#${activeMatch.threadId}>` : 'None', inline: true },
-        );
+      // Active match info — show all match IDs from the SET
+      if (activeMatchIds.length > 0) {
+        embed.addFields({
+          name: `Active Matches (${activeMatchIds.length})`,
+          value: activeMatchIds.map((id) => `#${id}`).join(', '),
+          inline: false,
+        });
       } else {
-        embed.addFields({ name: 'Active Match', value: 'None', inline: false });
+        embed.addFields({ name: 'Active Matches', value: 'None', inline: false });
       }
 
       // Postgres info
