@@ -120,11 +120,11 @@ export async function postMatchAnnouncementEmbed(
     new ButtonBuilder()
       .setCustomId(`report_win:${matchId}:${p1Id}`)
       .setLabel(`${p1Name} Won`)
-      .setStyle(ButtonStyle.Success),
+      .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
       .setCustomId(`report_win:${matchId}:${p2Id}`)
       .setLabel(`${p2Name} Won`)
-      .setStyle(ButtonStyle.Success),
+      .setStyle(ButtonStyle.Primary),
   );
 
   await thread.send({
@@ -211,18 +211,18 @@ export async function postMatchBottomPanel(
     new ButtonBuilder()
       .setCustomId(`report_win:${matchId}:${p1Id}`)
       .setLabel(`${p1Name} Won`)
-      .setStyle(ButtonStyle.Success),
+      .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
       .setCustomId(`report_win:${matchId}:${p2Id}`)
       .setLabel(`${p2Name} Won`)
-      .setStyle(ButtonStyle.Success),
+      .setStyle(ButtonStyle.Primary),
   );
 
   const actionRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`rc_checkin:${matchId}`)
       .setLabel("I'm Ready")
-      .setStyle(ButtonStyle.Primary),
+      .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
       .setCustomId(`extend_req:${matchId}`)
       .setLabel('Request Extension')
