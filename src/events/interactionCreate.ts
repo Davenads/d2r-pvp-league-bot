@@ -474,10 +474,10 @@ async function handleMirrorAccept(interaction: ButtonInteraction, nonce: string)
       ],
     });
 
-    // Update the original request message in #1v1-queue
-    const queueChannel = interaction.client.channels.cache.get(CHANNELS.queue) as TextChannel | undefined;
-    if (queueChannel) {
-      await queueChannel.send({
+    // Post match announcement to #1v1-match-results
+    const resultsChannel = interaction.client.channels.cache.get(CHANNELS.matchResults) as TextChannel | undefined;
+    if (resultsChannel) {
+      await resultsChannel.send({
         embeds: [
           new EmbedBuilder()
             .setColor(Colors.Gold)
