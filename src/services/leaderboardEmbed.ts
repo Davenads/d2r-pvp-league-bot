@@ -33,7 +33,7 @@ function parseLadderRows(rows: string[][]): LadderEntry[] {
     .slice(1)
     .filter((row) => row[idx('status')]?.trim() === 'Available' && (row[idx('discord_username')] || '').trim())
     .map((row) => ({
-      rank:           parseInt(row[idx('rank')] || '0', 10),
+      rank:           0, // assigned after client-side sort — do not trust the sheet column
       discordUsername: row[idx('discord_username')] ?? '',
       discordId:      row[idx('discord_id')] ?? '',
       build1:         row[idx('build_1')] ?? '',
@@ -101,7 +101,16 @@ export async function updateLeaderboardEmbed(client: Client): Promise<void> {
 
     // Always fetch fresh from Sheets — this is called after cache invalidation
     const rows = await fetchLadder();
-    const entries = parseLadderRows(rows);
+    const unranked = parseLadderRows(rows);
+
+    // Sort: points desc → W% desc → wins desc (mirrors ladder.ts client-side sort)
+    unranked.sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      if (b.winPct !== a.winPct) return b.winPct - a.winPct;
+      return b.wins - a.wins;
+    });
+    const entries: LadderEntry[] = unranked.map((e, i) => ({ ...e, rank: i + 1 }));
+
     const embed = buildLeaderboardEmbed(entries);
 
     // Try to edit the existing leaderboard message
