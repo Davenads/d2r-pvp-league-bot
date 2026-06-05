@@ -153,4 +153,84 @@ export async function postMatchAnnouncementEmbed(
   } catch (rulesErr) {
     console.error('[matchupUI] Failed to post rules to thread:', rulesErr);
   }
+
+  // ── Bottom command panel ───────────────────────────────────────────────────
+  // Duplicate of key match info + all action buttons, kept at the bottom so
+  // players don't need to scroll up. Stadium-requested layout (answer #6).
+  await postMatchBottomPanel(thread, matchId, matchup, p1Id, p2Id, p1Name, p2Name);
+}
+
+/**
+ * Posts the persistent "command panel" at the bottom of the match thread.
+ * Contains a compact matchup recap and all action buttons:
+ *   Row 1: P1 Won | P2 Won  (Report Win — same handler as announcement embed)
+ *   Row 2: I'm Ready (Ready Check) | Request Extension
+ *
+ * Called at the end of postMatchAnnouncementEmbed so it always sits at the
+ * bottom of the thread. Also callable independently (e.g. after rules are re-posted).
+ */
+export async function postMatchBottomPanel(
+  thread: ThreadChannel,
+  matchId: number,
+  matchup: BuildPairing,
+  p1Id: string,
+  p2Id: string,
+  p1DisplayName?: string,
+  p2DisplayName?: string,
+): Promise<void> {
+  const p1Name = p1DisplayName ?? `<@${p1Id}>`;
+  const p2Name = p2DisplayName ?? `<@${p2Id}>`;
+
+  const matchTypeLine = matchup.type === 'DEATHMATCH'
+    ? 'Deathmatch — **FT2**'
+    : 'Standard — **FT4**';
+
+  const recap = new EmbedBuilder()
+    .setColor(Colors.DarkGold)
+    .setTitle(`${CAIN_EMOJI} Match #${matchId} — Quick Reference`)
+    .addFields(
+      { name: `${p1Name}`, value: `${getClassEmoji(matchup.build1)} ${matchup.build1}`, inline: true },
+      { name: `${p2Name}`, value: `${getClassEmoji(matchup.build2)} ${matchup.build2}`, inline: true },
+      { name: 'Match Type', value: matchTypeLine, inline: false },
+      {
+        name: 'Ready Check',
+        value:
+          'Click **I\'m Ready** to log your availability (once every 4 hours).\n' +
+          'If the match isn\'t played within 3 days, the player with more check-ins wins a half-point result.',
+        inline: false,
+      },
+      {
+        name: 'Extension',
+        value: 'Click **Request Extension** if you need 3 more days. Both players must agree. One extension allowed.',
+        inline: false,
+      },
+    )
+    .setFooter({ text: 'For disputes, contact a 1v1 moderator directly.' });
+
+  const reportRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`report_win:${matchId}:${p1Id}`)
+      .setLabel(`${p1Name} Won`)
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId(`report_win:${matchId}:${p2Id}`)
+      .setLabel(`${p2Name} Won`)
+      .setStyle(ButtonStyle.Success),
+  );
+
+  const actionRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`rc_checkin:${matchId}`)
+      .setLabel("I'm Ready")
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(`extend_req:${matchId}`)
+      .setLabel('Request Extension')
+      .setStyle(ButtonStyle.Secondary),
+  );
+
+  await thread.send({
+    embeds: [recap],
+    components: [reportRow, actionRow],
+  });
 }
