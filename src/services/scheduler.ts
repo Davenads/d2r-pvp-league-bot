@@ -21,6 +21,7 @@ import type { ThreadChannel } from 'discord.js';
 import { prisma } from '../db/client.js';
 import { getForcedMatch, setForcedMatch, clearForcedMatch, setForcedMatchThread } from './queue.js';
 import { updateLeaderboardEmbed } from './leaderboardEmbed.js';
+import { resolveMatchByReadyCheck } from './readyCheck.js';
 import { CHANNELS } from '../config/channels.js';
 import { ROLES } from '../config/roles.js';
 import { config } from '../config.js';
@@ -28,6 +29,7 @@ import { config } from '../config.js';
 const FOUR_HOURS_MS         = 4 * 60 * 60 * 1000;
 const ONE_HOUR_MS           = 60 * 60 * 1000;
 const TWENTY_FOUR_HOURS_MS  = 24 * 60 * 60 * 1000;
+const THREE_DAYS_MS         = 3 * TWENTY_FOUR_HOURS_MS;
 const WARNING_DELAY_MS      = TWENTY_FOUR_HOURS_MS;  // 24h after forced assignment before warning
 const THREAD_ARCHIVE_DELAY_MS = TWENTY_FOUR_HOURS_MS;  // 24h after confirmation before auto-archive (scheduler fallback)
 const MATCH_REMINDER_DELAY_MS = TWENTY_FOUR_HOURS_MS;  // 24h before reminding players in thread
@@ -67,6 +69,10 @@ export function startScheduler(client: Client): void {
   // Run match reminder every 24 hours (offset by 2 hours to spread load)
   setTimeout(() => runMatchReminder(client), 2 * 60 * 60 * 1000);
   setInterval(() => runMatchReminder(client), TWENTY_FOUR_HOURS_MS);
+
+  // Run ready check deadline resolution every hour (offset by 45 minutes to spread load)
+  setTimeout(() => runReadyCheckDeadlines(client), 45 * 60 * 1000);
+  setInterval(() => runReadyCheckDeadlines(client), ONE_HOUR_MS);
 
   console.log('[Scheduler] Jobs scheduled.');
 }
@@ -464,6 +470,59 @@ async function runMatchReminder(client: Client): Promise<void> {
     console.log(`[Scheduler] Match reminder: ${reminded}/${stalePendingMatches.length} thread(s) reminded.`);
   } catch (err) {
     console.error('[Scheduler] Match reminder error:', err);
+  }
+}
+
+// ── Job 6: Ready check deadline resolution ────────────────────────────────────
+
+/**
+ * Runs every hour. Finds all PENDING matches that have passed their 3-day
+ * deadline (base window or post-extension window) and resolves them by
+ * ready check comparison via resolveMatchByReadyCheck().
+ *
+ * Deadline logic:
+ *   - Not extended: deadline = reportedAt + 3 days
+ *   - Extended:     deadline = extendedAt + 3 days
+ */
+async function runReadyCheckDeadlines(client: Client): Promise<void> {
+  console.log('[Scheduler] Running ready check deadline check...');
+
+  try {
+    const now = new Date();
+    const baseCutoff = new Date(Date.now() - THREE_DAYS_MS);
+
+    // Find PENDING matches past their deadline.
+    // Prisma doesn't support OR across nullable computed dates cleanly, so we
+    // fetch all PENDING matches and filter in JS — expected to be a small set.
+    const pendingMatches = await prisma.match.findMany({
+      where: { status: 'PENDING' },
+      select: { id: true, reportedAt: true, extendedAt: true },
+    });
+
+    const expired = pendingMatches.filter((m) => {
+      if (m.extendedAt) {
+        // Extended — deadline is 3 days after extension was granted
+        return m.extendedAt.getTime() + THREE_DAYS_MS <= now.getTime();
+      }
+      // Not extended — deadline is 3 days after match was created
+      return m.reportedAt.getTime() + THREE_DAYS_MS <= now.getTime();
+    });
+
+    if (expired.length === 0) {
+      console.log('[Scheduler] Ready check deadlines: no expired matches.');
+      return;
+    }
+
+    console.log(`[Scheduler] Ready check deadlines: ${expired.length} match(es) to resolve.`);
+
+    for (const match of expired) {
+      console.log(`[Scheduler] Resolving match #${match.id} by ready check...`);
+      await resolveMatchByReadyCheck(client, match.id);
+    }
+
+    console.log(`[Scheduler] Ready check deadlines: processed ${expired.length} match(es).`);
+  } catch (err) {
+    console.error('[Scheduler] Ready check deadline error:', err);
   }
 }
 
