@@ -99,6 +99,10 @@ model Match {
   // Thread ID of the auto-created Discord match thread
   threadId        String?
 
+  // Ready check / extend fields
+  extendedAt      DateTime?   // set when a 3-day extension is granted; null = not extended
+  rcResolved      Boolean     @default(false)  // true = result determined by ready check, not a played match
+
   reportedAt      DateTime    @default(now())
   confirmedAt     DateTime?
 
