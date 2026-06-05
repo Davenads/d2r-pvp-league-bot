@@ -12,7 +12,6 @@ import { prisma } from '../db/client.js';
 import {
   joinQueue,
   getPlayerState,
-  setMatchThreadId,
   getForcedMatch,
   clearForcedMatch,
   getForcedMatchThread,
@@ -57,11 +56,6 @@ export async function executeQueueJoin(interaction: QueueInteraction): Promise<v
 
     if (currentState === 'queued') {
       await interaction.editReply({ embeds: [buildErrorEmbed("You're already in the queue. Wait for an opponent.")] });
-      return;
-    }
-
-    if (currentState === 'in_match') {
-      await interaction.editReply({ embeds: [buildErrorEmbed("You're currently in an active match. Report the result first with `/report-win`.")] });
       return;
     }
 
@@ -160,7 +154,6 @@ export async function executeQueueJoin(interaction: QueueInteraction): Promise<v
         }
 
         if (matchId > 0) {
-          await setMatchThreadId(discordId, thread.id);
           await prisma.match.update({ where: { id: matchId }, data: { threadId: thread.id } });
         }
 
