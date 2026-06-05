@@ -163,10 +163,10 @@ export const command: Command = {
           .setStyle(ButtonStyle.Danger),
       );
 
-      // Post the consent request in #1v1-queue
-      const queueChannel = interaction.client.channels.cache.get(CHANNELS.queue) as TextChannel | undefined;
-      if (queueChannel) {
-        await queueChannel.send({
+      // Post the consent request in #1v1-match-results
+      const resultsChannel = interaction.client.channels.cache.get(CHANNELS.matchResults) as TextChannel | undefined;
+      if (resultsChannel) {
+        await resultsChannel.send({
           content: `<@${opponent.id}>`,
           embeds: [requestEmbed],
           components: [row],
@@ -179,7 +179,7 @@ export const command: Command = {
             .setColor(EMBED_COLORS.info)
             .setTitle(`${CAIN_EMOJI} Mirror Request Sent`)
             .setDescription(
-              `Your mirror match request has been sent to <@${opponent.id}> in <#${CHANNELS.queue}>.\n\n` +
+              `Your mirror match request has been sent to <@${opponent.id}> in <#${CHANNELS.matchResults}>.\n\n` +
               `**Build:** ${build}\n\nWaiting for their response (5 min timeout).`
             ),
         ],

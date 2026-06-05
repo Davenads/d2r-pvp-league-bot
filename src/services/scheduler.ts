@@ -108,7 +108,7 @@ async function runCadenceCheck(client: Client): Promise<void> {
       return;
     }
 
-    const queueChannel = client.channels.cache.get(CHANNELS.queue) as TextChannel | undefined;
+    const resultsChannel = client.channels.cache.get(CHANNELS.matchResults) as TextChannel | undefined;
     let newlyNotified = 0;
 
     for (const player of overduePlayers) {
@@ -137,9 +137,9 @@ async function runCadenceCheck(client: Client): Promise<void> {
           .setStyle(ButtonStyle.Primary)
       );
 
-      // Ping in #1v1-queue
-      if (queueChannel) {
-        await queueChannel.send({
+      // Ping in #1v1-match-results
+      if (resultsChannel) {
+        await resultsChannel.send({
           content: `<@${player.discordId}>`,
           embeds: [assignmentEmbed],
           components: [queueRow],
@@ -291,10 +291,10 @@ async function runWarningEscalation(client: Client): Promise<void> {
         });
       }
 
-      // Notify the player in #1v1-queue
-      const queueChannel = client.channels.cache.get(CHANNELS.queue) as TextChannel | undefined;
-      if (queueChannel) {
-        await queueChannel.send({
+      // Notify the player in #1v1-match-results
+      const resultsChannel2 = client.channels.cache.get(CHANNELS.matchResults) as TextChannel | undefined;
+      if (resultsChannel2) {
+        await resultsChannel2.send({
           content: `<@${player.discordId}>`,
           embeds: [
             new EmbedBuilder()

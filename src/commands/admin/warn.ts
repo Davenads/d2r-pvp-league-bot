@@ -104,9 +104,9 @@ export const command: Command = {
         await logChannel.send({ embeds: [embed] });
       }
 
-      // Notify the player in #1v1-queue (mirrors auto-warning behavior)
-      const queueChannel = interaction.client.channels.cache.get(CHANNELS.queue) as TextChannel | undefined;
-      if (queueChannel) {
+      // Notify the player in #1v1-match-results
+      const resultsChannel = interaction.client.channels.cache.get(CHANNELS.matchResults) as TextChannel | undefined;
+      if (resultsChannel) {
         const playerEmbed = new EmbedBuilder()
           .setColor(autoRemove ? Colors.Red : Colors.Yellow)
           .setTitle(autoRemove ? 'Removed from Ladder' : `Warning Issued (${newWarningCount}/${threshold})`)
@@ -117,7 +117,7 @@ export const command: Command = {
                 (reason ? `\n**Reason:** ${reason}` : '')
           )
           .setTimestamp();
-        await queueChannel.send({ content: `<@${target.id}>`, embeds: [playerEmbed] });
+        await resultsChannel.send({ content: `<@${target.id}>`, embeds: [playerEmbed] });
       }
     } catch (err) {
       console.error('[/admin-warn]', err);

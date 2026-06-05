@@ -828,10 +828,10 @@ async function handleMirrorDecline(interaction: ButtonInteraction, nonce: string
       ],
     });
 
-    // Notify the requester via #1v1-queue
-    const queueChannel = interaction.client.channels.cache.get(CHANNELS.queue) as TextChannel | undefined;
-    if (queueChannel) {
-      await queueChannel.send({
+    // Notify the requester via #1v1-match-results
+    const resultsChannel = interaction.client.channels.cache.get(CHANNELS.matchResults) as TextChannel | undefined;
+    if (resultsChannel) {
+      await resultsChannel.send({
         content: `<@${req.requesterId}>`,
         embeds: [
           new EmbedBuilder()
