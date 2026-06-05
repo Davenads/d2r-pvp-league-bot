@@ -341,16 +341,8 @@ export async function joinQueue(joinerDiscordId: string): Promise<QueueJoinOutco
       },
     });
 
-    // Set ActiveMatchState in Redis
-    const matchState: ActiveMatchState = {
-      matchId: match.id,
-      player1DiscordId: joinerDiscordId,
-      player2DiscordId: candidateId,
-      build1: selected.build1,
-      build2: selected.build2,
-      createdAt: Date.now(),
-    };
-    await setActiveMatch(matchState);
+    // Register match in both players' active match SETs
+    await addActiveMatch(match.id, joinerDiscordId, candidateId);
 
     return {
       matched: true,
@@ -507,17 +499,8 @@ export async function startMirrorMatch(
     },
   });
 
-  const matchState: ActiveMatchState = {
-    matchId: match.id,
-    player1DiscordId: req.requesterId,
-    player2DiscordId: req.opponentId,
-    build1: req.build,
-    build2: req.build,
-    createdAt: Date.now(),
-  };
-
   await Promise.all([
-    setActiveMatch(matchState),
+    addActiveMatch(match.id, req.requesterId, req.opponentId),
     setPlayerState(req.requesterId, 'in_match'),
     setPlayerState(req.opponentId, 'in_match'),
   ]);
