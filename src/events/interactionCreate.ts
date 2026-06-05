@@ -34,6 +34,9 @@ import {
   declineExtension,
   getPendingExtendRequest,
 } from '../services/matchExtend.js';
+import { getGeneralRules, getClassRules } from '../services/content.js';
+import { buildClassRulesEmbed } from '../utils/formatters.js';
+import { CANONICAL_BUILDS } from '../utils/buildList.js';
 
 export const name = Events.InteractionCreate;
 export const once = false;
@@ -155,6 +158,26 @@ export async function execute(interaction: Interaction): Promise<void> {
           'You can register up to 5 builds. Pick the ones you plan to play this season.\n\n' +
           'Once registered, you\'ll appear on the leaderboard and can enter the queue.',
       });
+      return;
+    }
+
+    if (action === 'info_builds') {
+      await handleInfoBuilds(interaction);
+      return;
+    }
+
+    if (action === 'info_report') {
+      await handleInfoReport(interaction);
+      return;
+    }
+
+    if (action === 'info_commands') {
+      await handleInfoCommands(interaction);
+      return;
+    }
+
+    if (action === 'info_rules') {
+      await handleInfoRules(interaction);
       return;
     }
   }
@@ -855,5 +878,108 @@ async function handleMirrorDecline(interaction: ButtonInteraction, nonce: string
   } catch (err) {
     console.error('[mirror_decline]', err);
     await interaction.editReply({ embeds: [buildErrorEmbed('Something went wrong. Contact a mod.')] });
+  }
+}
+
+// ── Info hub button handlers ───────────────────────────────────────────────────
+// These fire from the persistent info hub posted by /admin-post-info-hub.
+// All responses are ephemeral — only the clicker sees them.
+
+async function handleInfoBuilds(interaction: ButtonInteraction): Promise<void> {
+  // Group builds by class for readable display
+  const byClass: Record<string, string[]> = {};
+  for (const build of CANONICAL_BUILDS) {
+    const sep = build.indexOf(' - ');
+    const cls = sep === -1 ? 'Other' : build.slice(0, sep);
+    const name = sep === -1 ? build : build.slice(sep + 3);
+    if (!byClass[cls]) byClass[cls] = [];
+    byClass[cls].push(name);
+  }
+
+  const lines = Object.entries(byClass)
+    .map(([cls, builds]) => `**${cls}:** ${builds.join(' | ')}`)
+    .join('\n');
+
+  await interaction.reply({
+    ephemeral: true,
+    embeds: [
+      new EmbedBuilder()
+        .setColor(Colors.Gold)
+        .setTitle(`${CAIN_EMOJI} Valid Builds (${CANONICAL_BUILDS.length} total)`)
+        .setDescription(lines)
+        .setFooter({ text: 'Build selection is enforced at registration.' }),
+    ],
+  });
+}
+
+async function handleInfoReport(interaction: ButtonInteraction): Promise<void> {
+  await interaction.reply({
+    ephemeral: true,
+    embeds: [
+      new EmbedBuilder()
+        .setColor(Colors.Gold)
+        .setTitle(`${CAIN_EMOJI} How to Report a Win`)
+        .setDescription(
+          'At the end of your match, click the **winner button** in your private match thread.\n\n' +
+          'The buttons are labeled with each player\'s name — click the one for the winner.\n\n' +
+          'That\'s it. No confirmation from your opponent is required.\n\n' +
+          'For disputes, contact a **1v1 moderator** directly.'
+        ),
+    ],
+  });
+}
+
+async function handleInfoCommands(interaction: ButtonInteraction): Promise<void> {
+  await interaction.reply({
+    ephemeral: true,
+    embeds: [
+      new EmbedBuilder()
+        .setColor(Colors.Gold)
+        .setTitle(`${CAIN_EMOJI} Slash Command Reference`)
+        .setDescription(
+          '`/queue` — Enter the match queue\n' +
+          '`/leave-queue` — Leave the queue\n' +
+          '`/withdraw` — Remove yourself from the ladder\n' +
+          '`/register` — Register for the league (pick your builds)\n' +
+          '`/update-builds` — Change your registered builds\n' +
+          '`/ladder` — View current standings\n' +
+          '`/rules` — General league rules\n' +
+          '`/class-rules` — Rules for a specific class\n' +
+          '`/banned-matchups` — View banned build pairings\n' +
+          '`/deathmatch` — Check deathmatch alternatives for a build\n' +
+          '`/player` — View a player\'s stats and record\n' +
+          '`/faq` — Frequently asked questions'
+        ),
+    ],
+  });
+}
+
+async function handleInfoRules(interaction: ButtonInteraction): Promise<void> {
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    const [generalRules, classRulesMap] = await Promise.all([
+      getGeneralRules(),
+      getClassRules(),
+    ]);
+
+    const generalEmbed = new EmbedBuilder()
+      .setColor(Colors.Gold)
+      .setTitle(`${CAIN_EMOJI} D2R 1v1 League Rules`)
+      .setDescription(generalRules.join('\n') || 'No general rules loaded.')
+      .setFooter({ text: 'For class-specific rules, see below.' });
+
+    await interaction.editReply({ embeds: [generalEmbed] });
+
+    // Post each class's rules as ephemeral follow-ups
+    for (const [className, entry] of classRulesMap.entries()) {
+      const classEmbeds = buildClassRulesEmbed(className, entry);
+      for (const classEmbed of classEmbeds) {
+        await interaction.followUp({ ephemeral: true, embeds: [classEmbed] });
+      }
+    }
+  } catch (err) {
+    console.error('[info_rules]', err);
+    await interaction.editReply({ embeds: [buildErrorEmbed('Failed to load rules. Try again.')] });
   }
 }

@@ -82,6 +82,8 @@ export const CacheKeys = {
   queueBtnMsgId: () => 'd2r:queue:btn:msgid',
   // Action panel — stores the Discord message ID of the Register/Join Queue panel in the leaderboard channel
   actionPanelMsgId: () => 'd2r:action:panel:msgid',
+  // Info hub — stores JSON { channelId, messageId } of the persistent rules/info hub post
+  infoHubMsgId: () => 'd2r:info:hub:msgid',
 } as const;
 
 // ── Mirror request type ───────────────────────────────────────────────────────
