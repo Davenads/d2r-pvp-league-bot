@@ -5,6 +5,9 @@ import {
   TextChannel,
   ThreadChannel,
   ChannelType,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
 } from 'discord.js';
 import type { Interaction, ButtonInteraction } from 'discord.js';
 import type { BotClient } from '../index.js';
@@ -24,6 +27,13 @@ import {
 import { CHANNELS } from '../config/channels.js';
 import { postAllBannedEmbed, postMatchAnnouncementEmbed } from '../utils/matchupUI.js';
 import type { MatchType } from '@prisma/client';
+import { recordReadyCheck } from '../services/readyCheck.js';
+import {
+  requestExtension,
+  acceptExtension,
+  declineExtension,
+  getPendingExtendRequest,
+} from '../services/matchExtend.js';
 
 export const name = Events.InteractionCreate;
 export const once = false;
@@ -109,6 +119,30 @@ export async function execute(interaction: Interaction): Promise<void> {
     if (action === 'override_banned') {
       // payload format: {p1Id}:{p2Id}:{matchType}
       await handleOverrideBanned(interaction, payload);
+      return;
+    }
+
+    if (action === 'rc_checkin') {
+      // payload: {matchId}
+      await handleRcCheckin(interaction, payload);
+      return;
+    }
+
+    if (action === 'extend_req') {
+      // payload: {matchId}
+      await handleExtendRequest(interaction, payload);
+      return;
+    }
+
+    if (action === 'extend_accept') {
+      // payload: {matchId}
+      await handleExtendAccept(interaction, payload);
+      return;
+    }
+
+    if (action === 'extend_decline') {
+      // payload: {matchId}
+      await handleExtendDecline(interaction, payload);
       return;
     }
   }
@@ -460,6 +494,298 @@ async function handleMirrorAccept(interaction: ButtonInteraction, nonce: string)
   } catch (err) {
     console.error('[mirror_accept]', err);
     await interaction.editReply({ embeds: [buildErrorEmbed('Failed to create mirror match. Contact a mod.')] });
+  }
+}
+
+// ── Ready check handler ───────────────────────────────────────────────────────
+// payload: {matchId}
+
+async function handleRcCheckin(interaction: ButtonInteraction, payload: string): Promise<void> {
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    const matchId = parseInt(payload, 10);
+    if (!matchId) {
+      await interaction.editReply({ embeds: [buildErrorEmbed('Invalid button data.')] });
+      return;
+    }
+
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      include: { player1: true, player2: true },
+    });
+
+    if (!match) {
+      await interaction.editReply({ embeds: [buildErrorEmbed('Match not found.')] });
+      return;
+    }
+
+    const clickerId = interaction.user.id;
+    if (clickerId !== match.player1.discordId && clickerId !== match.player2.discordId) {
+      await interaction.editReply({ embeds: [buildErrorEmbed("You aren't a participant in this match.")] });
+      return;
+    }
+
+    if (match.status !== 'PENDING') {
+      await interaction.editReply({ embeds: [buildErrorEmbed('This match has already been resolved.')] });
+      return;
+    }
+
+    const result = await recordReadyCheck(matchId, clickerId);
+
+    if (!result.success) {
+      const nextSec = Math.floor(result.nextEligibleMs / 1000);
+      await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(EMBED_COLORS.warning)
+            .setTitle(`${CAIN_EMOJI} Already Checked In`)
+            .setDescription(`You're on cooldown. Next check-in available: <t:${nextSec}:R>.`),
+        ],
+      });
+      return;
+    }
+
+    await interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(Colors.Green)
+          .setTitle(`${CAIN_EMOJI} Ready Check Logged`)
+          .setDescription(`Check-in #${result.count} recorded. Next check-in available in 4 hours.`)
+          .setFooter({ text: 'Keep checking in to stay ahead of your opponent.' }),
+      ],
+    });
+  } catch (err) {
+    console.error('[rc_checkin]', err);
+    await interaction.editReply({ embeds: [buildErrorEmbed('Failed to record ready check. Try again.')] });
+  }
+}
+
+// ── Extend request handler ────────────────────────────────────────────────────
+// payload: {matchId}
+
+async function handleExtendRequest(interaction: ButtonInteraction, payload: string): Promise<void> {
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    const matchId = parseInt(payload, 10);
+    if (!matchId) {
+      await interaction.editReply({ embeds: [buildErrorEmbed('Invalid button data.')] });
+      return;
+    }
+
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      include: { player1: true, player2: true },
+    });
+
+    if (!match) {
+      await interaction.editReply({ embeds: [buildErrorEmbed('Match not found.')] });
+      return;
+    }
+
+    const requesterId = interaction.user.id;
+    if (requesterId !== match.player1.discordId && requesterId !== match.player2.discordId) {
+      await interaction.editReply({ embeds: [buildErrorEmbed("You aren't a participant in this match.")] });
+      return;
+    }
+
+    if (match.status !== 'PENDING') {
+      await interaction.editReply({ embeds: [buildErrorEmbed('This match has already been resolved.')] });
+      return;
+    }
+
+    const opponentId = requesterId === match.player1.discordId
+      ? match.player2.discordId
+      : match.player1.discordId;
+
+    const result = await requestExtension(matchId, requesterId);
+
+    if (result.status === 'already_extended') {
+      await interaction.editReply({
+        embeds: [buildErrorEmbed('This match has already been extended once. No further extensions are allowed.')],
+      });
+      return;
+    }
+
+    if (result.status === 'request_pending') {
+      const isSelf = result.existingRequesterId === requesterId;
+      await interaction.editReply({
+        embeds: [
+          buildErrorEmbed(
+            isSelf
+              ? 'You already have a pending extension request. Waiting for your opponent to respond.'
+              : 'An extension request is already pending for this match.',
+          ),
+        ],
+      });
+      return;
+    }
+
+    // Post accept/decline buttons in the thread for the opponent
+    const thread = interaction.channel as ThreadChannel | null;
+    if (thread?.isThread()) {
+      const acceptRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`extend_accept:${matchId}`)
+          .setLabel('Accept Extension')
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId(`extend_decline:${matchId}`)
+          .setLabel('Decline Extension')
+          .setStyle(ButtonStyle.Danger),
+      );
+
+      await thread.send({
+        content: `<@${opponentId}>`,
+        embeds: [
+          new EmbedBuilder()
+            .setColor(Colors.Yellow)
+            .setTitle(`${CAIN_EMOJI} Extension Requested`)
+            .setDescription(
+              `<@${requesterId}> is requesting a 3-day extension for this match.\n\n` +
+              'Click **Accept Extension** to agree. The match deadline shifts by 3 days and ready check counts reset.\n\n' +
+              '**Only one extension is allowed.** If declined, the original deadline stands.'
+            )
+            .setFooter({ text: 'This request expires in 48 hours.' }),
+        ],
+        components: [acceptRow],
+      });
+    }
+
+    await interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(Colors.Yellow)
+          .setTitle(`${CAIN_EMOJI} Extension Requested`)
+          .setDescription(`Your extension request has been sent. Waiting for <@${opponentId}> to respond.`),
+      ],
+    });
+  } catch (err) {
+    console.error('[extend_req]', err);
+    await interaction.editReply({ embeds: [buildErrorEmbed('Failed to request extension. Try again.')] });
+  }
+}
+
+// ── Extend accept handler ─────────────────────────────────────────────────────
+// payload: {matchId}
+
+async function handleExtendAccept(interaction: ButtonInteraction, payload: string): Promise<void> {
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    const matchId = parseInt(payload, 10);
+    if (!matchId) {
+      await interaction.editReply({ embeds: [buildErrorEmbed('Invalid button data.')] });
+      return;
+    }
+
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      include: { player1: true, player2: true },
+    });
+
+    if (!match) {
+      await interaction.editReply({ embeds: [buildErrorEmbed('Match not found.')] });
+      return;
+    }
+
+    const result = await acceptExtension(
+      matchId,
+      interaction.user.id,
+      match.player1.discordId,
+      match.player2.discordId,
+    );
+
+    if (result.status === 'no_request') {
+      await interaction.editReply({
+        embeds: [buildErrorEmbed('No pending extension request found. It may have expired.')],
+      });
+      return;
+    }
+
+    if (result.status === 'wrong_player') {
+      await interaction.editReply({
+        embeds: [buildErrorEmbed("You can't accept your own extension request.")],
+      });
+      return;
+    }
+
+    // Post confirmation in thread
+    const thread = interaction.channel as ThreadChannel | null;
+    if (thread?.isThread()) {
+      await thread.send({
+        content: `<@${match.player1.discordId}> <@${match.player2.discordId}>`,
+        embeds: [
+          new EmbedBuilder()
+            .setColor(Colors.Green)
+            .setTitle(`${CAIN_EMOJI} Extension Granted`)
+            .setDescription(
+              'Both players agreed to a 3-day extension. Ready check counts have been reset.\n\n' +
+              '**This is the only extension allowed.** The match must be completed within the new window.'
+            )
+            .setTimestamp(),
+        ],
+      });
+    }
+
+    await interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(Colors.Green)
+          .setTitle(`${CAIN_EMOJI} Extension Accepted`)
+          .setDescription('You accepted the extension. The match deadline has been extended by 3 days.'),
+      ],
+    });
+  } catch (err) {
+    console.error('[extend_accept]', err);
+    await interaction.editReply({ embeds: [buildErrorEmbed('Failed to accept extension. Contact a mod.')] });
+  }
+}
+
+// ── Extend decline handler ────────────────────────────────────────────────────
+// payload: {matchId}
+
+async function handleExtendDecline(interaction: ButtonInteraction, payload: string): Promise<void> {
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    const matchId = parseInt(payload, 10);
+    if (!matchId) {
+      await interaction.editReply({ embeds: [buildErrorEmbed('Invalid button data.')] });
+      return;
+    }
+
+    const pending = await getPendingExtendRequest(matchId);
+    await declineExtension(matchId);
+
+    // Notify the requester in thread
+    if (pending) {
+      const thread = interaction.channel as ThreadChannel | null;
+      if (thread?.isThread()) {
+        await thread.send({
+          content: `<@${pending.requesterId}>`,
+          embeds: [
+            new EmbedBuilder()
+              .setColor(EMBED_COLORS.warning)
+              .setTitle(`${CAIN_EMOJI} Extension Declined`)
+              .setDescription('Your extension request was declined. The original match deadline stands.'),
+          ],
+        });
+      }
+    }
+
+    await interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(EMBED_COLORS.warning)
+          .setTitle(`${CAIN_EMOJI} Extension Declined`)
+          .setDescription('You declined the extension request. The original deadline stands.'),
+      ],
+    });
+  } catch (err) {
+    console.error('[extend_decline]', err);
+    await interaction.editReply({ embeds: [buildErrorEmbed('Failed to decline extension. Contact a mod.')] });
   }
 }
 
