@@ -27,7 +27,8 @@ import {
   releaseOverrideLock,
 } from '../services/queue.js';
 import { CHANNELS } from '../config/channels.js';
-import { postAllBannedEmbed, postMatchAnnouncementEmbed } from '../utils/matchupUI.js';
+import { ROLES } from '../config/roles.js';
+import { postAllBannedEmbed, postMatchAnnouncementEmbed, postMatchBottomPanel } from '../utils/matchupUI.js';
 import type { MatchType } from '@prisma/client';
 import { recordReadyCheck } from '../services/readyCheck.js';
 import {
@@ -492,6 +493,23 @@ async function handleMirrorAccept(interaction: ButtonInteraction, nonce: string)
         await thread.members.add(req.requesterId);
         await thread.members.add(req.opponentId);
 
+        // Add all mod role members and ping the role — same as regular queue matches
+        const guild = interaction.guild;
+        if (guild) {
+          const modRole = guild.roles.cache.get(ROLES.mod)
+            ?? await guild.roles.fetch(ROLES.mod).catch(() => null);
+          if (modRole) {
+            for (const [modId] of modRole.members) {
+              await thread.members.add(modId).catch(() => {
+                console.warn(`[mirror_accept] Could not add mod ${modId} to thread`);
+              });
+            }
+            await thread.send({ content: `<@&${ROLES.mod}>` }).catch(() => {
+              console.warn('[mirror_accept] Could not post mod ping in thread');
+            });
+          }
+        }
+
         await thread.send({
           content: `<@${req.requesterId}> <@${req.opponentId}>`,
           embeds: [
@@ -499,10 +517,19 @@ async function handleMirrorAccept(interaction: ButtonInteraction, nonce: string)
               .setColor(Colors.Gold)
               .setTitle(`Mirror Match #${matchId} — ${req.build} vs ${req.build}`)
               .setDescription(`<@${req.requesterId}> vs <@${req.opponentId}>\n\nBoth players are on **${req.build}**.`)
-              .setFooter({ text: 'Report the result with /report-win once done.' })
+              .setFooter({ text: 'Use the winner buttons below or /report-win to record the result.' })
               .setTimestamp(),
           ],
         });
+
+        // Post the bottom panel so mirror matches have RC, Extension, and winner buttons
+        await postMatchBottomPanel(
+          thread,
+          matchId,
+          { build1: req.build, build2: req.build, type: 'STANDARD' },
+          req.requesterId,
+          req.opponentId,
+        );
 
         await prisma.match.update({ where: { id: matchId }, data: { threadId } });
       } catch (threadErr) {
