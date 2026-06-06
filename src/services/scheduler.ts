@@ -581,18 +581,14 @@ function scheduleDaily(utcHour: number, utcMinute: number, fn: () => void): void
 
 /**
  * Posts a "Looking for a Match?" embed + Join Queue button in #1v1-chat.
- * Skipped if the queue already has active players (they're already engaged).
+ * Always fires — when players are already waiting, the message adapts to
+ * call out that opponents are needed rather than skipping silently.
  */
 async function runQueueNudge(client: Client): Promise<void> {
   console.log('[Scheduler] Running queue nudge...');
 
   try {
-    // Skip if there are already players queued
     const queued = await getQueueList();
-    if (queued.length > 0) {
-      console.log(`[Scheduler] Queue nudge: skipped — ${queued.length} player(s) already in queue.`);
-      return;
-    }
 
     const chatChannel = client.channels.cache.get(CHANNELS.chat) as TextChannel | undefined;
     if (!chatChannel) {
@@ -600,10 +596,18 @@ async function runQueueNudge(client: Client): Promise<void> {
       return;
     }
 
-    const nudgeEmbed = new EmbedBuilder()
-      .setColor(Colors.Blue)
-      .setTitle('Looking for a Match?')
-      .setDescription('The 1v1 queue is open. Click below to jump in and get paired.');
+    // Context-aware message: surface waiting players so opponents are drawn in
+    const nudgeEmbed = queued.length > 0
+      ? new EmbedBuilder()
+          .setColor(Colors.Blue)
+          .setTitle('Players Waiting!')
+          .setDescription(
+            `${queued.length} player${queued.length === 1 ? '' : 's'} in queue looking for a match — jump in and get paired.`
+          )
+      : new EmbedBuilder()
+          .setColor(Colors.Blue)
+          .setTitle('Looking for a Match?')
+          .setDescription('The 1v1 queue is open. Click below to jump in and get paired.');
 
     const queueRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
@@ -613,7 +617,7 @@ async function runQueueNudge(client: Client): Promise<void> {
     );
 
     await chatChannel.send({ embeds: [nudgeEmbed], components: [queueRow] });
-    console.log('[Scheduler] Queue nudge posted.');
+    console.log(`[Scheduler] Queue nudge posted (${queued.length} player(s) in queue).`);
   } catch (err) {
     console.error('[Scheduler] Queue nudge error:', err);
   }
