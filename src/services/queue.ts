@@ -365,18 +365,29 @@ export async function joinQueue(joinerDiscordId: string): Promise<QueueJoinOutco
 
 /**
  * Re-queues both players after an all-banned override was declined.
- * Sets their state back to 'queued' and appends them to the queue list.
+ *
+ * Sets state to 'queued' unconditionally — this is correct even if either player
+ * has concurrent active matches. The 'queued' state is compatible with being
+ * in_match: resolvePlayerStateAfterMatch preserves 'queued' when concurrent matches
+ * resolve, so players remain in queue until matched. Active match SETs are not touched.
+ *
+ * Deduplication: skips the rpush if the player is already present in the queue
+ * (defensive guard — should not occur in normal flow since joinQueue uses lrem to
+ * remove the candidate before the allBanned path is reached).
  */
 export async function reQueueBothPlayers(p1Id: string, p2Id: string): Promise<void> {
   const redis = getRedisClient();
   const queueKey = CacheKeys.queue();
+
   await Promise.all([
     setPlayerState(p1Id, 'queued'),
     setPlayerState(p2Id, 'queued'),
   ]);
-  // Append both to the back of the queue
-  await redis.rpush(queueKey, p1Id);
-  await redis.rpush(queueKey, p2Id);
+
+  // Append to queue only if not already present — avoids phantom duplicate entries
+  const currentQueue = await redis.lrange(queueKey, 0, -1);
+  if (!currentQueue.includes(p1Id)) await redis.rpush(queueKey, p1Id);
+  if (!currentQueue.includes(p2Id)) await redis.rpush(queueKey, p2Id);
 }
 
 // ── Forced match assignment ───────────────────────────────────────────────────
