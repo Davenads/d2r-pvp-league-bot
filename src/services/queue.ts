@@ -469,23 +469,35 @@ export async function deleteMirrorRequest(nonce: string): Promise<void> {
  * Scans Redis for a pending mirror request where the given Discord ID is the opponent.
  * Returns the nonce and request data, or null if none found.
  * Used by /admin-accept-mirror to bypass the button click requirement.
+ *
+ * Uses cursor-based SCAN (not KEYS) to avoid blocking Redis during the scan.
+ * Returns early on first match — does not scan the entire keyspace unnecessarily.
  */
 export async function findMirrorRequestByOpponent(
   opponentId: string,
 ): Promise<{ nonce: string; req: MirrorRequest } | null> {
   const redis = getRedisClient();
   const prefix = CacheKeys.mirrorRequest('');
-  const keys = await redis.keys(`${prefix}*`);
-  if (keys.length === 0) return null;
-  const values = await redis.mget(...keys);
-  for (let i = 0; i < keys.length; i++) {
-    const raw = values[i];
-    if (!raw) continue;
-    const req = JSON.parse(raw) as MirrorRequest;
-    if (req.opponentId === opponentId) {
-      return { nonce: keys[i].slice(prefix.length), req };
+  const pattern = `${prefix}*`;
+  let cursor = '0';
+
+  do {
+    const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+    cursor = nextCursor;
+
+    if (keys.length > 0) {
+      const values = await redis.mget(...keys);
+      for (let i = 0; i < keys.length; i++) {
+        const raw = values[i];
+        if (!raw) continue;
+        const req = JSON.parse(raw) as MirrorRequest;
+        if (req.opponentId === opponentId) {
+          return { nonce: keys[i].slice(prefix.length), req };
+        }
+      }
     }
-  }
+  } while (cursor !== '0');
+
   return null;
 }
 
