@@ -121,9 +121,21 @@ export const command: Command = {
         return;
       }
 
-      const existing = await prisma.player.findFirst({
-        where: { discordId, seasonId: season.id },
+      // findUnique by discordId (globally unique) so we catch records from
+      // any season — avoids P2002 unique constraint crash when a player's
+      // record exists under a different seasonId than the active one.
+      const existing = await prisma.player.findUnique({
+        where: { discordId },
       });
+
+      // If they have a record from a different season that is still ACTIVE or
+      // VACATION, block registration until a mod sorts out the season conflict.
+      if (existing && existing.seasonId !== season.id && existing.status !== 'REMOVED') {
+        await interaction.editReply({
+          embeds: [buildErrorEmbed('You have an active registration from a previous season. Contact a mod to resolve this before re-registering.')],
+        });
+        return;
+      }
 
       if (existing && existing.status !== 'REMOVED') {
         const existingBuilds = [existing.build1, existing.build2, existing.build3, existing.build4, existing.build5]
@@ -141,7 +153,9 @@ export const command: Command = {
 
       if (existing && existing.status === 'REMOVED') {
         const GRACE_MS = 24 * 60 * 60 * 1000;
-        const withinGrace = existing.removedAt !== null &&
+        // Grace period only applies within the same season
+        const withinGrace = existing.seasonId === season.id &&
+          existing.removedAt !== null &&
           (Date.now() - existing.removedAt.getTime()) < GRACE_MS;
 
         if (withinGrace) {
@@ -162,10 +176,11 @@ export const command: Command = {
           });
           await reactivatePlayerOnLadder(discordId, discordUsername, builds);
         } else {
-          // Fresh start — reset all stats
+          // Fresh start — reset all stats (also re-bind to current season if cross-season)
           await prisma.player.update({
             where: { id: existing.id },
             data: {
+              seasonId: season.id,
               discordUsername,
               build1: builds[0],
               build2: builds[1],
