@@ -66,13 +66,13 @@ export const command: Command = {
 
       const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
-          .setCustomId('queue_join')
-          .setLabel('Join Queue')
-          .setStyle(ButtonStyle.Primary),
-        new ButtonBuilder()
           .setCustomId('action_register')
           .setLabel('Register')
           .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId('queue_join')
+          .setLabel('Join Queue')
+          .setStyle(ButtonStyle.Primary),
       );
 
       const msg = await channel.send({ embeds: [embed], components: [row] });
