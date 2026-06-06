@@ -135,6 +135,7 @@ export async function executeQueueJoin(interaction: QueueInteraction): Promise<v
 
     const threadParent = interaction.client.channels.cache.get(CHANNELS.matchThreads) as TextChannel | undefined;
     let thread: ThreadChannel | undefined;
+    let threadCreationFailed = false;
 
     if (threadParent) {
       try {
@@ -182,17 +183,22 @@ export async function executeQueueJoin(interaction: QueueInteraction): Promise<v
         }
       } catch (threadErr) {
         console.error('[queueJoin] Failed to create match thread:', threadErr);
+        threadCreationFailed = true;
       }
     }
 
     await interaction.editReply({
       embeds: [
         new EmbedBuilder()
-          .setColor(Colors.Green)
+          .setColor(thread ? Colors.Green : Colors.Orange)
           .setTitle(`${CAIN_EMOJI} Match Found!`)
           .setDescription(
             `You've been matched against <@${opponentDiscordId}>.\n\n` +
-            (thread ? `Head to <#${thread.id}> for your match details.` : 'A match has been set up.')
+            (thread
+              ? `Head to <#${thread.id}> for your match details.`
+              : `**Match #${matchId}** — ${selectedMatchup.build1} vs ${selectedMatchup.build2} (${matchType})\n\n` +
+                `The match thread could not be created. Use \`/report-win\` to record the result when done.`
+            )
           ),
       ],
     });
@@ -202,19 +208,47 @@ export async function executeQueueJoin(interaction: QueueInteraction): Promise<v
       await resultsChannel.send({
         embeds: [
           new EmbedBuilder()
-            .setColor(Colors.Gold)
+            .setColor(thread ? Colors.Gold : Colors.Orange)
             .setTitle(`${CAIN_EMOJI} Match Assigned`)
             .setDescription(
               `<@${discordId}> vs <@${opponentDiscordId}>` +
-              (thread ? `\n\n**Thread:** <#${thread.id}>` : '')
+              (thread ? `\n\n**Thread:** <#${thread.id}>` : `\n\n**Match #${matchId}** — thread creation failed. Players must use \`/report-win\`.`)
             )
             .setTimestamp(),
         ],
       });
 
-      await resultsChannel.send({
-        content: `<@${opponentDiscordId}> — you've been matched! Check ${thread ? `<#${thread.id}>` : 'your match thread'}.`,
-      });
+      if (thread) {
+        await resultsChannel.send({
+          content: `<@${opponentDiscordId}> — you've been matched! Check <#${thread.id}>.`,
+        });
+      } else {
+        // Thread failed — ping both players with explicit instructions
+        await resultsChannel.send({
+          content: `<@${discordId}> <@${opponentDiscordId}> — you've been matched (Match **#${matchId}**: ${selectedMatchup.build1} vs ${selectedMatchup.build2}). The private thread could not be created. Use \`/report-win\` once done.`,
+        });
+      }
+    }
+
+    // Alert mod-ops if thread creation failed so mods can investigate
+    if (threadCreationFailed && matchId > 0) {
+      const modLogsChannel = interaction.client.channels.cache.get(CHANNELS.modLogs) as TextChannel | undefined;
+      if (modLogsChannel) {
+        await modLogsChannel.send({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(Colors.Orange)
+              .setTitle(`${CAIN_EMOJI} Thread Creation Failed — Match #${matchId}`)
+              .setDescription(
+                `Failed to create private thread for <@${discordId}> vs <@${opponentDiscordId}>.\n\n` +
+                `Match **#${matchId}** (${selectedMatchup.build1} vs ${selectedMatchup.build2} — ${matchType}) was created and is valid. ` +
+                `Both players have been notified to use \`/report-win\` to record the result.`
+              )
+              .setFooter({ text: 'Check bot permissions for MANAGE_THREADS in #1v1-match-results.' })
+              .setTimestamp(),
+          ],
+        });
+      }
     }
   } catch (err) {
     console.error('[queueJoin]', err);
