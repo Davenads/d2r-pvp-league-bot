@@ -555,10 +555,13 @@ function scheduleDaily(utcHour: number, utcMinute: number, fn: () => void): void
     return next.getTime() - now.getTime();
   };
 
+  // Use recursive setTimeout instead of setInterval so msUntilNext() is
+  // recalculated on every iteration. setInterval(24h) drifts from the target
+  // UTC time after each dyno restart; this approach stays accurate indefinitely.
   const schedule = (): void => {
     setTimeout(() => {
       fn();
-      setInterval(fn, 24 * 60 * 60 * 1000);
+      schedule();
     }, msUntilNext());
   };
 
