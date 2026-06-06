@@ -16,6 +16,8 @@ import {
   clearForcedMatch,
   getForcedMatchThread,
   clearForcedMatchThread,
+  acquireQueueJoinLock,
+  releaseQueueJoinLock,
 } from '../services/queue.js';
 import { CHANNELS } from '../config/channels.js';
 import { ROLES } from '../config/roles.js';
@@ -25,6 +27,12 @@ type QueueInteraction = ChatInputCommandInteraction | ButtonInteraction;
 
 export async function executeQueueJoin(interaction: QueueInteraction): Promise<void> {
   const discordId = interaction.user.id;
+
+  const locked = await acquireQueueJoinLock(discordId);
+  if (!locked) {
+    await interaction.editReply({ embeds: [buildErrorEmbed('Already processing a queue request. Try again in a moment.')] });
+    return;
+  }
 
   try {
     const season = await prisma.season.findFirst({ where: { active: true } });
@@ -110,7 +118,7 @@ export async function executeQueueJoin(interaction: QueueInteraction): Promise<v
           embeds: [
             new EmbedBuilder()
               .setColor(EMBED_COLORS.info)
-              .setDescription(`<@${discordId}> joined the queue — position #${outcome.position}${forcedAssignment ? ' (forced match acknowledged)' : ''}`)
+              .setDescription(`A player joined the queue — position #${outcome.position}${forcedAssignment ? ' (forced match acknowledged)' : ''}`)
               .setTimestamp(),
           ],
         });
@@ -211,5 +219,7 @@ export async function executeQueueJoin(interaction: QueueInteraction): Promise<v
   } catch (err) {
     console.error('[queueJoin]', err);
     await interaction.editReply({ embeds: [buildErrorEmbed('Failed to join queue. Try again or contact a mod.')] });
+  } finally {
+    await releaseQueueJoinLock(discordId);
   }
 }

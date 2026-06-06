@@ -109,7 +109,7 @@ export const command: Command = {
             embeds: [
               new EmbedBuilder()
                 .setColor(EMBED_COLORS.info)
-                .setDescription(`<@${targetUser.id}> added to queue by mod <@${interaction.user.id}> — position #${outcome.position}`)
+                .setDescription(`A player was queued by mod <@${interaction.user.id}> — position #${outcome.position}`)
                 .setTimestamp(),
             ],
           });

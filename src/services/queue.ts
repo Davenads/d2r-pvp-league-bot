@@ -20,6 +20,22 @@ import {
 } from '../types/index.js';
 import { config } from '../config.js';
 
+// ── Queue join lock ───────────────────────────────────────────────────────────
+// Prevents duplicate queue join processing from rapid double-clicks or
+// concurrent interactions (e.g. button + slash command firing simultaneously).
+// Uses Redis SET NX EX for atomic acquisition with a 15-second TTL.
+
+export async function acquireQueueJoinLock(discordId: string): Promise<boolean> {
+  const redis = getRedisClient();
+  const result = await redis.set(CacheKeys.queueJoinLock(discordId), '1', 'EX', 15, 'NX');
+  return result === 'OK';
+}
+
+export async function releaseQueueJoinLock(discordId: string): Promise<void> {
+  const redis = getRedisClient();
+  await redis.del(CacheKeys.queueJoinLock(discordId));
+}
+
 // ── Player state ──────────────────────────────────────────────────────────────
 
 export async function getPlayerState(discordId: string): Promise<PlayerQueueState> {
