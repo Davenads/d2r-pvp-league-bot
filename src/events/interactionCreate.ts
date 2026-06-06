@@ -1040,13 +1040,21 @@ async function handleInfoRules(interaction: ButtonInteraction): Promise<void> {
       .setDescription(generalRules.join('\n') || 'No general rules loaded.')
       .setFooter({ text: 'For class-specific rules, see below.' });
 
-    await interaction.editReply({ embeds: [generalEmbed] });
-
-    // Post each class's rules as ephemeral follow-ups
+    // Collect all embeds (general + all class rules) then chunk into
+    // groups of 10 — Discord's per-message embed limit. This reduces
+    // up to 15 separate messages down to at most 2.
+    const allEmbeds: EmbedBuilder[] = [generalEmbed];
     for (const [className, entry] of classRulesMap.entries()) {
-      const classEmbeds = buildClassRulesEmbed(className, entry);
-      for (const classEmbed of classEmbeds) {
-        await interaction.followUp({ ephemeral: true, embeds: [classEmbed] });
+      allEmbeds.push(...buildClassRulesEmbed(className, entry));
+    }
+
+    const CHUNK_SIZE = 10;
+    for (let i = 0; i < allEmbeds.length; i += CHUNK_SIZE) {
+      const chunk = allEmbeds.slice(i, i + CHUNK_SIZE);
+      if (i === 0) {
+        await interaction.editReply({ embeds: chunk });
+      } else {
+        await interaction.followUp({ ephemeral: true, embeds: chunk });
       }
     }
   } catch (err) {
