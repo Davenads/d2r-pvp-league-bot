@@ -13,13 +13,18 @@
  *   3. Leaderboard embed refresh (every hour)
  *      - Edits the pinned #1v1-leaderboard embed to reflect current standings.
  *      - Covers cases where manual sheet edits change rankings between matches.
+ *
+ *   8. State reconciliation (every 4 hours, offset by 110 minutes)
+ *      - Finds ACTIVE players marked in_match with no active match SET entries.
+ *      - These are orphaned from the all-banned flow if players never clicked Override/Re-queue.
+ *      - Resets their state to idle and logs to mod-ops.
  */
 
 import type { Client, TextChannel } from 'discord.js';
 import { EmbedBuilder, Colors, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType } from 'discord.js';
 import type { ThreadChannel } from 'discord.js';
 import { prisma } from '../db/client.js';
-import { getForcedMatch, setForcedMatch, clearForcedMatch, setForcedMatchThread, getQueueList } from './queue.js';
+import { getForcedMatch, setForcedMatch, clearForcedMatch, setForcedMatchThread, getQueueList, getPlayerState, setPlayerState, hasActiveMatches } from './queue.js';
 import { updateLeaderboardEmbed } from './leaderboardEmbed.js';
 import { resolveMatchByReadyCheck } from './readyCheck.js';
 import { CHANNELS } from '../config/channels.js';
@@ -77,6 +82,10 @@ export function startScheduler(client: Client): void {
   // Queue nudge: fire at 22:00 UTC (6 PM EST) and 02:00 UTC (10 PM EST) daily
   scheduleDaily(22, 0, () => runQueueNudge(client));
   scheduleDaily(2,  0, () => runQueueNudge(client));
+
+  // Run state reconciliation every 4 hours (offset by 110 minutes to spread load)
+  setTimeout(() => runStateReconciliation(client), 110 * 60 * 1000);
+  setInterval(() => runStateReconciliation(client), FOUR_HOURS_MS);
 
   console.log('[Scheduler] Jobs scheduled.');
 }
@@ -634,5 +643,65 @@ async function runThreadCleanup(client: Client): Promise<void> {
     console.log(`[Scheduler] Thread cleanup: ${archived} thread(s) archived out of ${staleMatches.length} stale.`);
   } catch (err) {
     console.error('[Scheduler] Thread cleanup error:', err);
+  }
+}
+
+// ── Job 8: State reconciliation ───────────────────────────────────────────────
+
+/**
+ * Finds ACTIVE players whose Redis state is `in_match` but who have no entries
+ * in their active match SET. This is the fingerprint of the all-banned orphan case:
+ * joinQueue sets both players to `in_match` before returning allBanned: true, but
+ * never calls addActiveMatch (no match record exists yet). If neither player clicks
+ * Override nor Re-queue, they remain stuck indefinitely.
+ *
+ * Fix: reset orphaned players to `idle` and log each reset to mod-ops.
+ */
+async function runStateReconciliation(client: Client): Promise<void> {
+  console.log('[Scheduler] Running state reconciliation...');
+
+  try {
+    const season = await prisma.season.findFirst({ where: { active: true } });
+    if (!season) return;
+
+    const activePlayers = await prisma.player.findMany({
+      where: { seasonId: season.id, status: 'ACTIVE' },
+      select: { discordId: true },
+    });
+
+    let fixed = 0;
+
+    for (const player of activePlayers) {
+      const state = await getPlayerState(player.discordId);
+      if (state !== 'in_match') continue;
+
+      const hasMatches = await hasActiveMatches(player.discordId);
+      if (hasMatches) continue;
+
+      // in_match with no active match SET entries — orphaned state
+      await setPlayerState(player.discordId, 'idle');
+      fixed++;
+
+      const logChannel = client.channels.cache.get(CHANNELS.modLogs) as TextChannel | undefined;
+      if (logChannel) {
+        await logChannel.send({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(Colors.Orange)
+              .setTitle('Orphaned State Cleared')
+              .setDescription(
+                `<@${player.discordId}> was stuck in \`in_match\` with no active match records.\n\n` +
+                `State reset to \`idle\`. This typically occurs when the all-banned Override/Re-queue prompt is never resolved.`
+              )
+              .setFooter({ text: 'Cleared by state reconciliation job' })
+              .setTimestamp(),
+          ],
+        });
+      }
+    }
+
+    console.log(`[Scheduler] State reconciliation: ${fixed} orphaned state(s) cleared out of ${activePlayers.length} players checked.`);
+  } catch (err) {
+    console.error('[Scheduler] State reconciliation error:', err);
   }
 }
