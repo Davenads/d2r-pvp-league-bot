@@ -25,6 +25,7 @@ import {
   reQueueBothPlayers,
   acquireOverrideLock,
   releaseOverrideLock,
+  clearForcedMatch,
 } from '../services/queue.js';
 import { CHANNELS } from '../config/channels.js';
 import { ROLES } from '../config/roles.js';
@@ -181,6 +182,11 @@ export async function execute(interaction: Interaction): Promise<void> {
 
     if (action === 'info_rules') {
       await handleInfoRules(interaction);
+      return;
+    }
+
+    if (action === 'vacation_request') {
+      await handleVacationRequest(interaction);
       return;
     }
   }
@@ -1060,5 +1066,113 @@ async function handleInfoRules(interaction: ButtonInteraction): Promise<void> {
   } catch (err) {
     console.error('[info_rules]', err);
     await interaction.editReply({ embeds: [buildErrorEmbed('Failed to load rules. Try again.')] });
+  }
+}
+
+// ── Vacation request handler ───────────────────────────────────────────────────
+// Triggered by the "Request Vacation" button posted in forced-assignment threads/pings.
+// Grants a 7-day hiatus from the warning scheduler. Player can only request again
+// after playing at least one match since their last vacation ended.
+
+async function handleVacationRequest(interaction: ButtonInteraction): Promise<void> {
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    const season = await prisma.season.findFirst({ where: { active: true } });
+    if (!season) {
+      await interaction.editReply({ embeds: [buildErrorEmbed('No active season.')] });
+      return;
+    }
+
+    const player = await prisma.player.findFirst({
+      where: { discordId: interaction.user.id, seasonId: season.id },
+    });
+
+    if (!player) {
+      await interaction.editReply({ embeds: [buildErrorEmbed("You aren't registered in the current season.")] });
+      return;
+    }
+
+    if (player.status === 'REMOVED') {
+      await interaction.editReply({ embeds: [buildErrorEmbed("You've been removed from the ladder.")] });
+      return;
+    }
+
+    // Already on vacation
+    if (player.status === 'VACATION' && player.hiatusUntil && player.hiatusUntil > new Date()) {
+      const untilSec = Math.floor(player.hiatusUntil.getTime() / 1000);
+      await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(Colors.Yellow)
+            .setTitle(`${CAIN_EMOJI} Already on Vacation`)
+            .setDescription(`Your current vacation is active until <t:${untilSec}:F>.`),
+        ],
+      });
+      return;
+    }
+
+    // Gate: can only request a new vacation if they've played at least one match
+    // since their last vacation ended (hiatusUntil is null = first time).
+    const eligible =
+      player.hiatusUntil === null ||
+      (player.lastMatchAt !== null && player.lastMatchAt > player.hiatusUntil);
+
+    if (!eligible) {
+      await interaction.editReply({
+        embeds: [
+          buildErrorEmbed(
+            "You must play at least one match after returning from vacation before requesting another."
+          ),
+        ],
+      });
+      return;
+    }
+
+    const hiatusUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    await prisma.player.update({
+      where: { id: player.id },
+      data: { status: 'VACATION', hiatusUntil },
+    });
+
+    // Clear the forced match assignment so the warning escalation job won't fire
+    await clearForcedMatch(interaction.user.id);
+
+    const untilSec = Math.floor(hiatusUntil.getTime() / 1000);
+
+    await interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(Colors.Blue)
+          .setTitle(`${CAIN_EMOJI} Vacation Granted`)
+          .setDescription(
+            `Your vacation has been approved. You won't receive forced-match warnings until <t:${untilSec}:F>.\n\n` +
+            `When you're back, queue up and play a match — you'll need to play at least once before you can request another vacation.`
+          )
+          .setTimestamp(),
+      ],
+    });
+
+    // Log to mod-ops
+    const logChannel = interaction.client.channels.cache.get(CHANNELS.modLogs) as TextChannel | undefined;
+    if (logChannel) {
+      await logChannel.send({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(Colors.Blue)
+            .setTitle(`${CAIN_EMOJI} Player Vacation Requested`)
+            .addFields(
+              { name: 'Player', value: `<@${interaction.user.id}> (${interaction.user.username})`, inline: true },
+              { name: 'Season', value: season.name, inline: true },
+              { name: 'Hiatus Until', value: `<t:${untilSec}:F>`, inline: true },
+            )
+            .setTimestamp(),
+        ],
+      });
+    }
+  } catch (err) {
+    console.error('[vacation_request]', err);
+    await interaction.editReply({ embeds: [buildErrorEmbed('Failed to process vacation request. Contact a mod.')] });
   }
 }

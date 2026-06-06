@@ -96,6 +96,15 @@ async function runCadenceCheck(client: Client): Promise<void> {
   console.log('[Scheduler] Running match cadence check...');
 
   try {
+    // Auto-expire vacations whose hiatusUntil has passed, returning players to ACTIVE
+    const expired = await prisma.player.updateMany({
+      where: { status: 'VACATION', hiatusUntil: { lt: new Date() } },
+      data: { status: 'ACTIVE' },
+    });
+    if (expired.count > 0) {
+      console.log(`[Scheduler] Cadence check: ${expired.count} vacation(s) expired — players returned to ACTIVE.`);
+    }
+
     const season = await prisma.season.findFirst({ where: { active: true } });
     if (!season) return;
 
@@ -147,7 +156,11 @@ async function runCadenceCheck(client: Client): Promise<void> {
         new ButtonBuilder()
           .setCustomId('queue_join')
           .setLabel('⚔️ Join Queue')
-          .setStyle(ButtonStyle.Primary)
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId('vacation_request')
+          .setLabel('🏖️ Request Vacation')
+          .setStyle(ButtonStyle.Secondary),
       );
 
       // Ping in #1v1-match-results
