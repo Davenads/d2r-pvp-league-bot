@@ -1,3 +1,4 @@
+// Config — loaded at bot startup
 import 'dotenv/config';
 
 function requireEnv(key: string): string {
