@@ -84,6 +84,8 @@ export const CacheKeys = {
   actionPanelMsgId: () => 'd2r:action:panel:msgid',
   // Info hub — stores JSON { channelId, messageId } of the persistent rules/info hub post
   infoHubMsgId: () => 'd2r:info:hub:msgid',
+  // Per-player distributed lock to prevent duplicate queue join processing
+  queueJoinLock: (discordId: string) => `d2r:queue:join:lock:${discordId}`,
 } as const;
 
 // ── Mirror request type ───────────────────────────────────────────────────────
