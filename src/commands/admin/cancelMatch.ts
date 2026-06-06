@@ -84,6 +84,7 @@ export const command: Command = {
           const thread = interaction.client.channels.cache.get(match.threadId) as ThreadChannel | undefined;
           if (thread?.isThread()) {
             await thread.send({
+              content: `<@${player1.discordId}> <@${player2.discordId}>`,
               embeds: [
                 new EmbedBuilder()
                   .setColor(Colors.Red)
