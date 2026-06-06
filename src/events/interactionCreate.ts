@@ -842,7 +842,37 @@ async function handleExtendDecline(interaction: ButtonInteraction, payload: stri
       return;
     }
 
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      include: { player1: true, player2: true },
+    });
+
+    if (!match) {
+      await interaction.editReply({ embeds: [buildErrorEmbed('Match not found.')] });
+      return;
+    }
+
+    // Only a match participant can decline
+    const isParticipant =
+      interaction.user.id === match.player1.discordId ||
+      interaction.user.id === match.player2.discordId;
+    if (!isParticipant) {
+      await interaction.editReply({
+        embeds: [buildErrorEmbed('Only a participant in this match can decline the extension request.')],
+      });
+      return;
+    }
+
     const pending = await getPendingExtendRequest(matchId);
+
+    // Can't decline your own extension request
+    if (pending && pending.requesterId === interaction.user.id) {
+      await interaction.editReply({
+        embeds: [buildErrorEmbed("You can't decline your own extension request.")],
+      });
+      return;
+    }
+
     await declineExtension(matchId);
 
     // Notify the requester in thread
