@@ -81,12 +81,7 @@ export const command: Command = {
         return;
       }
 
-      if (currentState === 'in_match') {
-        await interaction.editReply({
-          embeds: [buildErrorEmbed(`<@${targetUser.id}> is currently in an active match.`)],
-        });
-        return;
-      }
+      // Note: in_match players are allowed to re-queue — concurrent matches are intentional.
 
       // Join the queue via normal FIFO logic
       const outcome = await joinQueue(targetUser.id);
