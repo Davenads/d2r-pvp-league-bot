@@ -36,6 +36,23 @@ export async function releaseQueueJoinLock(discordId: string): Promise<void> {
   await redis.del(CacheKeys.queueJoinLock(discordId));
 }
 
+/**
+ * Acquires a short-lived NX lock for the all-banned override flow.
+ * Prevents duplicate match creation if both players click the override button simultaneously.
+ * Key is sorted by player ID so it's consistent regardless of click order.
+ * TTL: 30 seconds — enough to cover the match creation round-trip.
+ */
+export async function acquireOverrideLock(p1Id: string, p2Id: string): Promise<boolean> {
+  const redis = getRedisClient();
+  const result = await redis.set(CacheKeys.overrideLock(p1Id, p2Id), '1', 'EX', 30, 'NX');
+  return result === 'OK';
+}
+
+export async function releaseOverrideLock(p1Id: string, p2Id: string): Promise<void> {
+  const redis = getRedisClient();
+  await redis.del(CacheKeys.overrideLock(p1Id, p2Id));
+}
+
 // ── Player state ──────────────────────────────────────────────────────────────
 
 export async function getPlayerState(discordId: string): Promise<PlayerQueueState> {

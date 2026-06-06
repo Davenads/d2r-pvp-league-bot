@@ -86,6 +86,11 @@ export const CacheKeys = {
   infoHubMsgId: () => 'd2r:info:hub:msgid',
   // Per-player distributed lock to prevent duplicate queue join processing
   queueJoinLock: (discordId: string) => `d2r:queue:join:lock:${discordId}`,
+  // Per-pair lock to prevent duplicate override_banned match creation from simultaneous clicks
+  overrideLock: (p1Id: string, p2Id: string) => {
+    const [a, b] = [p1Id, p2Id].sort();
+    return `d2r:override:lock:${a}:${b}`;
+  },
 } as const;
 
 // ── Mirror request type ───────────────────────────────────────────────────────

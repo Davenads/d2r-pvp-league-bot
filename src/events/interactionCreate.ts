@@ -23,6 +23,8 @@ import {
   getAllowedMatchups,
   selectRandomPairing,
   reQueueBothPlayers,
+  acquireOverrideLock,
+  releaseOverrideLock,
 } from '../services/queue.js';
 import { CHANNELS } from '../config/channels.js';
 import { postAllBannedEmbed, postMatchAnnouncementEmbed } from '../utils/matchupUI.js';
@@ -357,67 +359,79 @@ async function handleOverrideBanned(interaction: ButtonInteraction, payload: str
 
     const matchType = (matchTypeRaw === 'TOURNAMENT' ? 'TOURNAMENT' : 'STANDARD') as MatchType;
 
-    // Look up both players in the active season
-    const season = await prisma.season.findFirst({ where: { active: true } });
-    if (!season) {
-      await interaction.editReply({ embeds: [buildErrorEmbed('No active season.')] });
+    // Acquire a per-pair NX lock to prevent duplicate match creation if both
+    // players click the override button simultaneously.
+    const locked = await acquireOverrideLock(p1Id, p2Id);
+    if (!locked) {
+      await interaction.editReply({ embeds: [buildErrorEmbed('Override already in progress. Check the thread for your match details.')] });
       return;
     }
 
-    const [p1Record, p2Record] = await Promise.all([
-      prisma.player.findFirst({ where: { discordId: p1Id, seasonId: season.id } }),
-      prisma.player.findFirst({ where: { discordId: p2Id, seasonId: season.id } }),
-    ]);
+    try {
+      // Look up both players in the active season
+      const season = await prisma.season.findFirst({ where: { active: true } });
+      if (!season) {
+        await interaction.editReply({ embeds: [buildErrorEmbed('No active season.')] });
+        return;
+      }
 
-    if (!p1Record || !p2Record) {
-      await interaction.editReply({ embeds: [buildErrorEmbed('One or both players could not be found.')] });
-      return;
+      const [p1Record, p2Record] = await Promise.all([
+        prisma.player.findFirst({ where: { discordId: p1Id, seasonId: season.id } }),
+        prisma.player.findFirst({ where: { discordId: p2Id, seasonId: season.id } }),
+      ]);
+
+      if (!p1Record || !p2Record) {
+        await interaction.editReply({ embeds: [buildErrorEmbed('One or both players could not be found.')] });
+        return;
+      }
+
+      // Fetch ALL pairings (including banned) — pick randomly from all
+      const { all } = await getAllowedMatchups(p1Record, p2Record);
+      const selected = selectRandomPairing(all);
+
+      // Create Prisma Match record
+      const match = await prisma.match.create({
+        data: {
+          seasonId: season.id,
+          player1Id: p1Record.id,
+          player2Id: p2Record.id,
+          build1Used: selected.build1,
+          build2Used: selected.build2,
+          type: matchType,
+          status: 'PENDING',
+        },
+      });
+
+      // Register match in both players' active match SETs
+      await addActiveMatch(match.id, p1Id, p2Id);
+
+      // Post announcement in thread
+      const thread = interaction.channel as ThreadChannel | null;
+      if (thread?.isThread()) {
+        // Update threadId in match record
+        await prisma.match.update({ where: { id: match.id }, data: { threadId: thread.id } });
+
+        await postMatchAnnouncementEmbed(
+          thread,
+          selected,
+          p1Id,
+          p2Id,
+          match.id,
+          matchType === 'TOURNAMENT',
+        );
+      }
+
+      await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(Colors.Gold)
+            .setTitle(`${CAIN_EMOJI} Override Applied`)
+            .setDescription(`Match #${match.id} created with **${selected.build1} vs ${selected.build2}**.`),
+        ],
+      });
+    } finally {
+      await releaseOverrideLock(p1Id, p2Id);
     }
-
-    // Fetch ALL pairings (including banned) — pick randomly from all
-    const { all } = await getAllowedMatchups(p1Record, p2Record);
-    const selected = selectRandomPairing(all);
-
-    // Create Prisma Match record
-    const match = await prisma.match.create({
-      data: {
-        seasonId: season.id,
-        player1Id: p1Record.id,
-        player2Id: p2Record.id,
-        build1Used: selected.build1,
-        build2Used: selected.build2,
-        type: matchType,
-        status: 'PENDING',
-      },
-    });
-
-    // Register match in both players' active match SETs
-    await addActiveMatch(match.id, p1Id, p2Id);
-
-    // Post announcement in thread
-    const thread = interaction.channel as ThreadChannel | null;
-    if (thread?.isThread()) {
-      // Update threadId in match record
-      await prisma.match.update({ where: { id: match.id }, data: { threadId: thread.id } });
-
-      await postMatchAnnouncementEmbed(
-        thread,
-        selected,
-        p1Id,
-        p2Id,
-        match.id,
-        matchType === 'TOURNAMENT',
-      );
-    }
-
-    await interaction.editReply({
-      embeds: [
-        new EmbedBuilder()
-          .setColor(Colors.Gold)
-          .setTitle(`${CAIN_EMOJI} Override Applied`)
-          .setDescription(`Match #${match.id} created with **${selected.build1} vs ${selected.build2}**.`),
-      ],
-    });
   } catch (err) {
     console.error('[override_banned]', err);
     await interaction.editReply({ embeds: [buildErrorEmbed('Failed to apply override. Contact a mod.')] });
