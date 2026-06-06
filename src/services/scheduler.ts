@@ -495,7 +495,7 @@ async function runMatchReminder(client: Client): Promise<void> {
   }
 }
 
-// ── Job 6: Ready check deadline resolution ────────────────────────────────────
+// ── Job 5: Ready check deadline resolution ────────────────────────────────────
 
 /**
  * Runs every hour. Finds all PENDING matches that have passed their 3-day
@@ -577,7 +577,7 @@ function scheduleDaily(utcHour: number, utcMinute: number, fn: () => void): void
   schedule();
 }
 
-// ── Job 7: Queue nudge ────────────────────────────────────────────────────────
+// ── Job 6: Queue nudge ────────────────────────────────────────────────────────
 
 /**
  * Posts a "Looking for a Match?" embed + Join Queue button in #1v1-chat.
@@ -619,7 +619,7 @@ async function runQueueNudge(client: Client): Promise<void> {
   }
 }
 
-// ── Job 5: Thread auto-archive ────────────────────────────────────────────────
+// ── Job 7: Thread auto-archive ────────────────────────────────────────────────
 
 async function runThreadCleanup(client: Client): Promise<void> {
   console.log('[Scheduler] Running thread cleanup...');
