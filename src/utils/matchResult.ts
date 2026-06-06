@@ -74,6 +74,11 @@ export async function processMatchResult(
   const winnerIsP1   = player1.discordId === winnerId;
   const winnerPlayer = winnerIsP1 ? player1 : player2;
   const loserPlayer  = winnerIsP1 ? player2 : player1;
+
+  // Defense-in-depth: catch any code path that somehow produces a self-match
+  if (winnerPlayer.discordId === loserPlayer.discordId) {
+    return { success: false, errorMessage: 'Invalid match — winner and loser are the same player. Contact a mod.' };
+  }
   const winnerBuild  = winnerIsP1 ? match.build1Used : match.build2Used;
   const loserBuild   = winnerIsP1 ? match.build2Used : match.build1Used;
 

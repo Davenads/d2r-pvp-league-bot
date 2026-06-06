@@ -30,6 +30,11 @@ export const command: Command = {
     const isTestRule = interaction.options.getBoolean('test_rule') ?? false;
     const reporterDiscordId = interaction.user.id;
 
+    if (winner.id === reporterDiscordId) {
+      await interaction.editReply({ embeds: [buildErrorEmbed("You can't report yourself as the winner.")] });
+      return;
+    }
+
     try {
       // Find the PENDING match between the reporter and the declared winner
       const season = await prisma.season.findFirst({ where: { active: true } });
