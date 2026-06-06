@@ -143,18 +143,18 @@ export async function isFarmingCapped(p1: string, p2: string): Promise<boolean> 
 }
 
 /**
- * Records a pairing. Increments the counter and (re)sets the TTL window.
+ * Records a pairing. Increments the counter and slides the TTL window
+ * forward from the most recent match.
+ *
+ * INCR on a non-existent key returns 1 (Redis spec), so no existence
+ * check is needed. Pipeline batches both ops in one round trip and
+ * eliminates the exists→set race condition.
  */
 export async function recordPairing(p1: string, p2: string): Promise<void> {
   const redis = getRedisClient();
   const key = CacheKeys.farmingPair(p1, p2);
   const ttlSeconds = config.league.farmingCapHours * 3600;
-  const exists = await redis.exists(key);
-  if (exists) {
-    await redis.incr(key);
-  } else {
-    await redis.set(key, '1', 'EX', ttlSeconds);
-  }
+  await redis.pipeline().incr(key).expire(key, ttlSeconds).exec();
 }
 
 // ── FIFO queue ────────────────────────────────────────────────────────────────
