@@ -41,6 +41,11 @@ export const command: Command = {
           { name: 'Tournament', value: 'TOURNAMENT' },
         )
     )
+    .addIntegerOption((opt) =>
+      opt
+        .setName('match_id')
+        .setDescription('Match ID to override — required when players have multiple concurrent active matches')
+    )
     .addStringOption((opt) =>
       opt.setName('reason').setDescription('Reason for the override (optional)')
     ),
@@ -53,6 +58,7 @@ export const command: Command = {
     const p2User = interaction.options.getUser('player2', true);
     const winnerUser = interaction.options.getUser('winner', true);
     const matchTypeRaw = interaction.options.getString('match_type') ?? 'STANDARD';
+    const matchIdOpt = interaction.options.getInteger('match_id') ?? null;
     const reason = interaction.options.getString('reason') ?? 'Admin override';
 
     // Winner must be one of the two players
@@ -90,28 +96,71 @@ export const command: Command = {
         return;
       }
 
-      // Find the most recent unresolved match between these two players
-      const match = await prisma.match.findFirst({
-        where: {
-          seasonId: season.id,
-          status: { in: ['PENDING', 'DISPUTED'] },
-          OR: [
-            { player1Id: p1Record.id, player2Id: p2Record.id },
-            { player1Id: p2Record.id, player2Id: p1Record.id },
-          ],
-        },
-        orderBy: { reportedAt: 'desc' },
-      });
+      // Resolve the target match — either by explicit match_id or by pair lookup
+      let match: Awaited<ReturnType<typeof prisma.match.findFirst>>;
 
-      if (!match) {
-        await interaction.editReply({
-          embeds: [buildErrorEmbed(
-            `No pending or disputed match found between **${p1User.username}** and **${p2User.username}**.\n\n` +
-            `If this match was never created via the queue, use \`/admin-register\` to ensure both players are registered, ` +
-            `then contact the developer to manually create a match record.`
-          )],
+      if (matchIdOpt !== null) {
+        // Direct lookup — validate it belongs to these players and is overrideable
+        const candidate = await prisma.match.findUnique({ where: { id: matchIdOpt } });
+        if (!candidate) {
+          await interaction.editReply({ embeds: [buildErrorEmbed(`Match #${matchIdOpt} not found.`)] });
+          return;
+        }
+        if (candidate.seasonId !== season.id) {
+          await interaction.editReply({ embeds: [buildErrorEmbed(`Match #${matchIdOpt} is not part of the active season.`)] });
+          return;
+        }
+        const belongsToPlayers =
+          (candidate.player1Id === p1Record.id && candidate.player2Id === p2Record.id) ||
+          (candidate.player1Id === p2Record.id && candidate.player2Id === p1Record.id);
+        if (!belongsToPlayers) {
+          await interaction.editReply({ embeds: [buildErrorEmbed(`Match #${matchIdOpt} does not involve both specified players.`)] });
+          return;
+        }
+        if (candidate.status !== 'PENDING' && candidate.status !== 'DISPUTED') {
+          await interaction.editReply({
+            embeds: [buildErrorEmbed(`Match #${matchIdOpt} has status \`${candidate.status}\` — only PENDING or DISPUTED matches can be overridden.`)],
+          });
+          return;
+        }
+        match = candidate;
+      } else {
+        // No match_id — find all pending matches between these players
+        const pendingMatches = await prisma.match.findMany({
+          where: {
+            seasonId: season.id,
+            status: { in: ['PENDING', 'DISPUTED'] },
+            OR: [
+              { player1Id: p1Record.id, player2Id: p2Record.id },
+              { player1Id: p2Record.id, player2Id: p1Record.id },
+            ],
+          },
+          orderBy: { reportedAt: 'desc' },
         });
-        return;
+
+        if (pendingMatches.length === 0) {
+          await interaction.editReply({
+            embeds: [buildErrorEmbed(
+              `No pending or disputed match found between **${p1User.username}** and **${p2User.username}**.\n\n` +
+              `If this match was never created via the queue, use \`/admin-register\` to ensure both players are registered, ` +
+              `then contact the developer to manually create a match record.`
+            )],
+          });
+          return;
+        }
+
+        if (pendingMatches.length > 1) {
+          const ids = pendingMatches.map((m) => `#${m.id}`).join(', ');
+          await interaction.editReply({
+            embeds: [buildErrorEmbed(
+              `Multiple pending matches found between **${p1User.username}** and **${p2User.username}**: ${ids}.\n\n` +
+              `Use the \`match_id\` option to specify which match to override.`
+            )],
+          });
+          return;
+        }
+
+        match = pendingMatches[0];
       }
 
       const winnerRecord = winnerUser.id === p1User.id ? p1Record : p2Record;
