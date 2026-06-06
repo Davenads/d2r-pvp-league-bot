@@ -376,10 +376,19 @@ async function runWarningDecay(client: Client): Promise<void> {
       // 3 distinct days in a 3-day window must be consecutive
       if (days.size < 3) continue;
 
-      await prisma.player.update({
-        where: { id: player.id },
-        data: { warnings: 0 },
-      });
+      // Reset counter AND soft-delete all uncleared Warning records atomically.
+      // Without the updateMany, Warning rows with clearedAt=null persist as
+      // orphans after decay, causing admin-clear-warning to find stale records.
+      await prisma.$transaction([
+        prisma.player.update({
+          where: { id: player.id },
+          data: { warnings: 0 },
+        }),
+        prisma.warning.updateMany({
+          where: { playerId: player.id, clearedAt: null },
+          data: { clearedAt: new Date(), clearedBy: 'system-decay' },
+        }),
+      ]);
       decayed++;
 
       const logChannel = client.channels.cache.get(CHANNELS.modLogs) as TextChannel | undefined;
