@@ -7,10 +7,13 @@ import {
   ThreadChannel,
 } from 'discord.js';
 import type { Command } from '../../types/index.js';
-import { buildErrorEmbed, EMBED_COLORS, CAIN_EMOJI } from '../../utils/formatters.js';
+import { buildErrorEmbed, EMBED_COLORS, CAIN_EMOJI, getClassEmoji } from '../../utils/formatters.js';
 import { prisma } from '../../db/client.js';
 import { removeActiveMatch, resolvePlayerStateAfterMatch } from '../../services/queue.js';
 import { updateLadderResult } from '../../services/ladder.js';
+import { cacheDel } from '../../services/cache.js';
+import { CacheKeys } from '../../types/index.js';
+import { updateLeaderboardEmbed } from '../../services/leaderboardEmbed.js';
 import { CHANNELS } from '../../config/channels.js';
 import { assertModRole } from '../../utils/modGuard.js';
 
@@ -143,6 +146,12 @@ export const command: Command = {
       await resolvePlayerStateAfterMatch(winnerRecord.discordId);
       await resolvePlayerStateAfterMatch(loserRecord.discordId);
 
+      // Invalidate ladder cache and trigger leaderboard embed refresh
+      await cacheDel(CacheKeys.ladder());
+      updateLeaderboardEmbed(interaction.client).catch((e) =>
+        console.error('[/admin-set-result] Leaderboard embed update failed:', e)
+      );
+
       const typeLabel = matchTypeRaw.replace('_', ' ');
 
       await interaction.editReply({
@@ -201,13 +210,32 @@ export const command: Command = {
         });
       }
 
-      // Archive the match thread if present
+      // Post result to match thread, then archive it
       if (match.threadId) {
         try {
           const thread = interaction.client.channels.cache.get(match.threadId) as ThreadChannel | undefined;
-          if (thread?.isThread()) await thread.setArchived(true, 'Match result set by admin');
+          if (thread?.isThread()) {
+            const winnerBuild = winnerUser.id === p1User.id ? match.build1Used : match.build2Used;
+            const loserBuild  = winnerUser.id === p1User.id ? match.build2Used : match.build1Used;
+            await thread.send({
+              content: `<@${winnerRecord.discordId}> <@${loserRecord.discordId}>`,
+              embeds: [
+                new EmbedBuilder()
+                  .setColor(Colors.Green)
+                  .setTitle(`${CAIN_EMOJI} Match #${match.id} — Complete (Admin Override)`)
+                  .addFields(
+                    { name: 'Winner', value: `<@${winnerRecord.discordId}> (${getClassEmoji(winnerBuild)} ${winnerBuild})`, inline: true },
+                    { name: 'Loser',  value: `<@${loserRecord.discordId}> (${getClassEmoji(loserBuild)} ${loserBuild})`,   inline: true },
+                    { name: 'Type',   value: typeLabel, inline: true },
+                  )
+                  .setFooter({ text: `Result set by mod ${interaction.user.username}. This thread will be archived.` })
+                  .setTimestamp(),
+              ],
+            });
+            await thread.setArchived(true, 'Match result set by admin');
+          }
         } catch (threadErr) {
-          console.warn('[/admin-set-result] Failed to archive thread:', threadErr);
+          console.warn('[/admin-set-result] Failed to post/archive thread:', threadErr);
         }
       }
     } catch (err) {
