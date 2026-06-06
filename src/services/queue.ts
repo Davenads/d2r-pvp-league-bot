@@ -320,7 +320,7 @@ export async function joinQueue(joinerDiscordId: string): Promise<QueueJoinOutco
         player2Id: opponentPlayer.id,
         build1Used: selected.build1,
         build2Used: selected.build2,
-        type: 'STANDARD',
+        type: selected.type === 'DEATHMATCH' ? 'DEATHMATCH' : 'STANDARD',
         status: 'PENDING',
       },
     });
