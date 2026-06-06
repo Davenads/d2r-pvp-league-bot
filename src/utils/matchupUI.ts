@@ -1,6 +1,6 @@
 /**
  * Shared helpers for posting match UI embeds into match threads.
- * Used by /queue, /admin-forcematch, and their interactionCreate handlers.
+ * Used by /queue, /admin-force-match, and their interactionCreate handlers.
  */
 
 import {

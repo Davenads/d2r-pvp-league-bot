@@ -1,5 +1,5 @@
 /**
- * /admin-forcematch
+ * /admin-force-match
  *
  * Mod-only command to create a tournament match between two registered players.
  * - Computes all allowed build pairings via getAllowedMatchups
@@ -34,7 +34,7 @@ import { postAllBannedEmbed, postMatchAnnouncementEmbed } from '../../utils/matc
 
 export const command: Command = {
   data: new SlashCommandBuilder()
-    .setName('admin-forcematch')
+    .setName('admin-force-match')
     .setDescription('Force a tournament match between two players — winner +2 pts, loser +1 pt (mod only)')
     .addUserOption((opt) =>
       opt.setName('player1').setDescription('First player').setRequired(true)
@@ -125,17 +125,17 @@ export const command: Command = {
             if (modRole) {
               for (const [modId] of modRole.members) {
                 await thread.members.add(modId).catch(() => {
-                  console.warn(`[/admin-forcematch] Could not add mod ${modId} to thread`);
+                  console.warn(`[/admin-force-match] Could not add mod ${modId} to thread`);
                 });
               }
               // Ping the mod role so all mods receive a notification
               await thread.send({ content: `<@&${ROLES.mod}>` }).catch(() => {
-                console.warn('[/admin-forcematch] Could not post mod ping in thread');
+                console.warn('[/admin-force-match] Could not post mod ping in thread');
               });
             }
           }
         } catch (threadErr) {
-          console.error('[/admin-forcematch] Failed to create match thread:', threadErr);
+          console.error('[/admin-force-match] Failed to create match thread:', threadErr);
         }
       }
 
@@ -267,7 +267,7 @@ export const command: Command = {
         ],
       });
     } catch (err) {
-      console.error('[/admin-forcematch]', err);
+      console.error('[/admin-force-match]', err);
       await interaction.editReply({ embeds: [buildErrorEmbed('Command failed. Check server logs.')] });
     }
   },

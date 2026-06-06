@@ -113,7 +113,7 @@ export interface BuildPairing {
 }
 
 /**
- * Returned by joinQueue / admin-forcematch when two players are matched.
+ * Returned by joinQueue / admin-force-match when two players are matched.
  * Prisma Match record is created immediately on match; no pending selection needed.
  */
 export interface MatchFound {
