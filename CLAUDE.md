@@ -429,6 +429,32 @@ The bot operates in the **1v1 League** category of the production Discord server
 
 ---
 
+## Slash Command Deployment
+
+Slash commands must be explicitly registered with Discord via `npm run deploy` (runs `src/deploy-commands.ts`). This is separate from the Heroku autodeploy — pushing to GitHub deploys the bot code automatically, but **command definitions are not updated in Discord until `npm run deploy` is run manually**.
+
+**Run `npm run deploy` whenever any of the following change:**
+- A new slash command is added (`src/commands/**/*.ts`)
+- A command is renamed (`setName(...)`)
+- A command description changes
+- Options are added, removed, renamed, or reordered on any command
+- `setRequired()` status changes on any option
+- A command is deleted (must remove from deploy list too)
+
+**Do NOT need to redeploy for:**
+- Changes to command handler logic (how the command behaves)
+- Button interaction changes
+- Scheduler changes
+- Service/utility changes
+
+Commands are registered to both guilds (production + dev) simultaneously. Changes are instant for guild-scoped commands — no propagation delay.
+
+```bash
+npm run deploy
+```
+
+---
+
 ## Implementation Protocol
 
 When the user asks to implement multiple features/commands in sequence:
