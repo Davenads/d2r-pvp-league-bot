@@ -107,11 +107,12 @@ export const command: Command = {
         return;
       }
 
-      const existing = await prisma.player.findFirst({
-        where: { discordId: target.id, seasonId: season.id },
+      const existing = await prisma.player.findUnique({
+        where: { discordId: target.id },
       });
 
-      if (existing && existing.status !== 'REMOVED') {
+      // Block only if already active/vacation in the current season
+      if (existing && existing.seasonId === season.id && existing.status !== 'REMOVED') {
         const existingBuilds = [existing.build1, existing.build2, existing.build3, existing.build4, existing.build5]
           .filter((b): b is string => !!b);
         const buildList = existingBuilds.map((b, i) => `• Build ${i + 1}: **${b}**`).join('\n');
@@ -123,12 +124,30 @@ export const command: Command = {
         return;
       }
 
-      if (existing && existing.status === 'REMOVED') {
+      if (!existing) {
+        await prisma.player.create({
+          data: {
+            discordId: target.id,
+            discordUsername: target.username,
+            build1: builds[0],
+            build2: builds[1],
+            build3: builds[2] ?? null,
+            build4: builds[3] ?? null,
+            build5: builds[4] ?? null,
+            seasonId: season.id,
+          },
+        });
+        await addPlayerToLadder(target.id, target.username, builds);
+      } else {
+        // Existing record — determine if grace-period reactivation or fresh start
         const GRACE_MS = 24 * 60 * 60 * 1000;
-        const withinGrace = existing.removedAt !== null &&
+        const withinGrace = existing.status === 'REMOVED' &&
+          existing.seasonId === season.id &&
+          existing.removedAt !== null &&
           (Date.now() - existing.removedAt.getTime()) < GRACE_MS;
 
         if (withinGrace) {
+          // Restore record — preserve W/L, reset warnings only
           await prisma.player.update({
             where: { id: existing.id },
             data: {
@@ -145,9 +164,11 @@ export const command: Command = {
           });
           await reactivatePlayerOnLadder(target.id, target.username, builds);
         } else {
+          // Fresh start — reset all stats and re-bind to current season (handles cross-season migration)
           await prisma.player.update({
             where: { id: existing.id },
             data: {
+              seasonId: season.id,
               discordUsername: target.username,
               build1: builds[0],
               build2: builds[1],
@@ -163,20 +184,6 @@ export const command: Command = {
           });
           await resetPlayerOnLadder(target.id, target.username, builds);
         }
-      } else {
-        await prisma.player.create({
-          data: {
-            discordId: target.id,
-            discordUsername: target.username,
-            build1: builds[0],
-            build2: builds[1],
-            build3: builds[2] ?? null,
-            build4: builds[3] ?? null,
-            build5: builds[4] ?? null,
-            seasonId: season.id,
-          },
-        });
-        await addPlayerToLadder(target.id, target.username, builds);
       }
 
       const buildList = builds

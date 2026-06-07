@@ -44,20 +44,20 @@ export const command: Command = {
         return;
       }
 
-      const player = await prisma.player.findFirst({
-        where: { discordId: target.id, seasonId: season.id },
+      const player = await prisma.player.findUnique({
+        where: { discordId: target.id },
       });
 
       if (!player) {
         await interaction.editReply({
-          embeds: [buildErrorEmbed(`**${target.username}** is not registered in **${season.name}**.`)],
+          embeds: [buildErrorEmbed(`**${target.username}** is not registered in any season.`)],
         });
         return;
       }
 
       if (player.status === 'REMOVED') {
         await interaction.editReply({
-          embeds: [buildErrorEmbed(`**${target.username}** has already been removed from **${season.name}**.`)],
+          embeds: [buildErrorEmbed(`**${target.username}** has already been removed.`)],
         });
         return;
       }
