@@ -1,7 +1,8 @@
 import { SlashCommandBuilder, ChatInputCommandInteraction, AutocompleteInteraction, EmbedBuilder } from 'discord.js';
 import type { Command } from '../types/index.js';
 import { getBuildChoices, resolveBuild } from '../utils/buildList.js';
-import { getDeathmatches, getAllDeathmatches } from '../services/matchup.js';
+import { getDeathmatches } from '../services/matchup.js';
+import { getDeathmatches as getAllDeathmatches } from '../services/content.js';
 import { buildErrorEmbed, buildUnavailableEmbed, EMBED_COLORS } from '../utils/formatters.js';
 import { getClassEmoji, CAIN_EMOJI } from '../utils/classEmojis.js';
 
@@ -68,18 +69,18 @@ export const command: Command = {
 
     // ── All builds ────────────────────────────────────────────────────────────
     try {
-      const allResults = await getAllDeathmatches();
+      const dmMap = await getAllDeathmatches();
 
-      const lines = allResults
-        .filter((r) => r.alternatives.length > 0)
-        .map((r) => {
-          const emoji = getClassEmoji(r.build);
-          const buildLabel = emoji ? `${emoji} **${r.build}**` : `**${r.build}**`;
-          const alts = r.alternatives.map((alt) => {
+      const lines = [...dmMap.entries()]
+        .filter(([, alts]) => alts.length > 0)
+        .map(([build, alts]) => {
+          const emoji = getClassEmoji(build);
+          const buildLabel = emoji ? `${emoji} **${build}**` : `**${build}**`;
+          const altLabels = alts.map((alt) => {
             const altEmoji = getClassEmoji(alt);
             return altEmoji ? `${altEmoji} ${alt}` : alt;
           });
-          return `${buildLabel} — ${alts.join(', ')}`;
+          return `${buildLabel} — ${altLabels.join(', ')}`;
         });
 
       const embed = new EmbedBuilder()

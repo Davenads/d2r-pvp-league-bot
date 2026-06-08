@@ -74,20 +74,3 @@ export async function getDeathmatches(build: string): Promise<DeathmatchAlternat
   return result;
 }
 
-export async function getAllDeathmatches(): Promise<DeathmatchAlternatives[]> {
-  const cacheKey = CacheKeys.deathmatches();
-  const cached = await cacheGet<DeathmatchAlternatives[]>(cacheKey);
-  if (cached) return cached;
-
-  const rows = await fetchDeathmatches();
-  const results: DeathmatchAlternatives[] = rows
-    .slice(1)
-    .filter((r) => r[0]?.trim())
-    .map((r) => ({
-      build: r[0].trim(),
-      alternatives: r.slice(1).map((v) => v?.trim()).filter(Boolean),
-    }));
-
-  await cacheSet(cacheKey, results, config.cache.ttlRules);
-  return results;
-}

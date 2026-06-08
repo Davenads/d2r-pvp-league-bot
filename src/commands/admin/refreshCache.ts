@@ -25,7 +25,7 @@ const TAB_ENTRIES: Record<string, TabEntry> = {
   },
   deathmatches: {
     label: 'Deathmatches',
-    pattern: 'd2r:deathmatch:*',
+    pattern: 'd2r:deathmatch*',
     rewarm: async () => {
       const map = await getDeathmatches();
       return `${map.size} build${map.size !== 1 ? 's' : ''} loaded`;
