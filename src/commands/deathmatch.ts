@@ -79,7 +79,9 @@ export const command: Command = {
           const buildLabel = emoji ? `${emoji} **${build}**` : `**${build}**`;
           const altLabels = alts.map((alt) => {
             const altEmoji = getClassEmoji(alt);
-            return altEmoji ? `${altEmoji} ${alt}` : alt;
+            const sepIdx = alt.indexOf(' - ');
+            const shortName = sepIdx !== -1 ? alt.slice(sepIdx + 3) : alt;
+            return altEmoji ? `${altEmoji} ${shortName}` : shortName;
           });
           return `${buildLabel} — ${altLabels.join(', ')}`;
         });
