@@ -110,27 +110,15 @@ export async function postMatchAnnouncementEmbed(
       { name: 'Rules', value: matchTypeLine, inline: false },
       {
         name: 'When finished',
-        value: 'Click the **winner button** below to record the result.\nFor test rule matches, use `/report-win` with the `test_rule` option.\nFor disputes, contact a **1v1 moderator**.',
+        value: 'Use the **winner buttons** at the bottom of this thread to record the result.\nFor test rule matches, use `/report-win` with the `test_rule` option.\nFor disputes, contact a **1v1 moderator**.',
         inline: false,
       },
     )
     .setTimestamp();
 
-  const winnerRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`report_win:${matchId}:${p1Id}`)
-      .setLabel(`${p1Name} Won`)
-      .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder()
-      .setCustomId(`report_win:${matchId}:${p2Id}`)
-      .setLabel(`${p2Name} Won`)
-      .setStyle(ButtonStyle.Primary),
-  );
-
   await thread.send({
     content: `<@${p1Id}> <@${p2Id}>`,
     embeds: [embed],
-    components: [winnerRow],
   });
 
   // ── Post class rules ──────────────────────────────────────────────────────
