@@ -71,8 +71,9 @@ export const command: Command = {
     try {
       const dmMap = await getAllDeathmatches();
 
+      // Filter out the sheet header row ("Build" key) and entries with no opponents
       const lines = [...dmMap.entries()]
-        .filter(([, alts]) => alts.length > 0)
+        .filter(([build, alts]) => alts.length > 0 && resolveBuild(build) !== null)
         .map(([build, alts]) => {
           const emoji = getClassEmoji(build);
           const buildLabel = emoji ? `${emoji} **${build}**` : `**${build}**`;
@@ -83,13 +84,32 @@ export const command: Command = {
           return `${buildLabel} — ${altLabels.join(', ')}`;
         });
 
-      const embed = new EmbedBuilder()
-        .setColor(EMBED_COLORS.rules)
-        .setTitle(`${CAIN_EMOJI} All Deathmatch Matchups`)
-        .setDescription(lines.length ? lines.join('\n') : '*No deathmatch matchups found.*')
-        .setFooter({ text: 'Use /deathmatch [build] to filter to a specific build.' });
+      // Paginate across embeds to stay under Discord's 4096-char description limit
+      const MAX_DESC = 4000;
+      const pages: string[][] = [[]];
+      let currentLen = 0;
+      for (const line of lines) {
+        const lineLen = line.length + 1; // +1 for newline separator
+        if (currentLen + lineLen > MAX_DESC && pages[pages.length - 1].length > 0) {
+          pages.push([]);
+          currentLen = 0;
+        }
+        pages[pages.length - 1].push(line);
+        currentLen += lineLen;
+      }
 
-      await interaction.editReply({ embeds: [embed] });
+      const embeds = pages.map((pageLines, i) =>
+        new EmbedBuilder()
+          .setColor(EMBED_COLORS.rules)
+          .setTitle(i === 0 ? `${CAIN_EMOJI} All Deathmatch Matchups` : `${CAIN_EMOJI} All Deathmatch Matchups (continued)`)
+          .setDescription(pageLines.length ? pageLines.join('\n') : '*No deathmatch matchups found.*')
+          .setFooter(i === pages.length - 1 ? { text: 'Use /deathmatch [build] to filter to a specific build.' } : null)
+      );
+
+      await interaction.editReply({ embeds: [embeds[0]] });
+      for (let i = 1; i < embeds.length; i++) {
+        await interaction.followUp({ ephemeral: true, embeds: [embeds[i]] });
+      }
     } catch (err) {
       console.error('[/deathmatch]', err);
       await interaction.editReply({ embeds: [buildUnavailableEmbed()] });
