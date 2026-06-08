@@ -40,6 +40,7 @@ import {
 } from '../services/matchExtend.js';
 import { getGeneralRules, getClassRules } from '../services/content.js';
 import { buildClassRulesEmbed } from '../utils/formatters.js';
+import { parseRulesIntoSections, buildRulesEmbeds } from '../utils/rulesParser.js';
 import { CANONICAL_BUILDS } from '../utils/buildList.js';
 
 export const name = Events.InteractionCreate;
@@ -1045,16 +1046,13 @@ async function handleInfoRules(interaction: ButtonInteraction): Promise<void> {
       getClassRules(),
     ]);
 
-    const generalEmbed = new EmbedBuilder()
-      .setColor(Colors.Gold)
-      .setTitle(`${CAIN_EMOJI} D2R 1v1 League Rules`)
-      .setDescription(generalRules.join('\n') || 'No general rules loaded.')
-      .setFooter({ text: 'For class-specific rules, see below.' });
+    // General rules — use the same paginated pipeline as /rules to avoid
+    // Discord's 4096-char embed description limit.
+    const generalEmbeds = buildRulesEmbeds(parseRulesIntoSections(generalRules), 'rules');
 
     // Collect all embeds (general + all class rules) then chunk into
-    // groups of 10 — Discord's per-message embed limit. This reduces
-    // up to 15 separate messages down to at most 2.
-    const allEmbeds: EmbedBuilder[] = [generalEmbed];
+    // groups of 10 — Discord's per-message embed limit.
+    const allEmbeds: EmbedBuilder[] = [...generalEmbeds];
     for (const [className, entry] of classRulesMap.entries()) {
       allEmbeds.push(...buildClassRulesEmbed(className, entry));
     }
