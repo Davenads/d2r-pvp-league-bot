@@ -163,12 +163,15 @@ export async function processMatchResult(
                 { name: 'Loser',  value: `<@${loserPlayer.discordId}> (${getClassEmoji(loserBuild)} ${loserBuild})`,   inline: true },
                 { name: 'Type',   value: typeLabel, inline: true },
               )
-              .setFooter({ text: 'GG! This thread will now be archived.' })
+              .setFooter({ text: 'GG! This thread will now be locked and archived.' })
               .setTimestamp(),
           ],
         });
 
-        // Auto-archive the thread immediately after posting the result
+        // Lock then archive — locking prevents users from unarchiving via new messages
+        await thread.setLocked(true, 'Match completed').catch((lockErr) =>
+          console.warn(`[processMatchResult] Failed to lock thread for match #${match.id}:`, lockErr)
+        );
         await thread.setArchived(true, 'Match completed').catch((archiveErr) =>
           console.warn(`[processMatchResult] Failed to auto-archive thread for match #${match.id}:`, archiveErr)
         );

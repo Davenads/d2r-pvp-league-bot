@@ -659,8 +659,12 @@ async function runThreadCleanup(client: Client): Promise<void> {
     for (const match of staleMatches) {
       if (!match.threadId) continue;
       try {
-        const channel = client.channels.cache.get(match.threadId);
+        // Use fetch() so cache-evicted threads (e.g. after dyno restart) are still found
+        const channel = await client.channels.fetch(match.threadId).catch(() => null);
         if (channel?.isThread() && !channel.archived) {
+          if (!channel.locked) {
+            await channel.setLocked(true, 'Auto-locked 24h after match confirmation');
+          }
           await channel.setArchived(true, 'Auto-archived 24h after match confirmation');
           archived++;
         }
