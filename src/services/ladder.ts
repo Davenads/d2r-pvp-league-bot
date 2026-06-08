@@ -450,3 +450,17 @@ export async function updateLadderResult(
     },
   });
 }
+
+/**
+ * Clears all player rows from the Ladder sheet (rows 2+), preserving the header.
+ * Called on season transition to give a clean slate for re-registration.
+ * Uses values.clear so addPlayerToLadder's UUID scan still works correctly on the next registration.
+ */
+export async function clearLadderForNewSeason(): Promise<void> {
+  const sheets = getWriteClient();
+  await sheets.spreadsheets.values.clear({
+    spreadsheetId: config.google.sheetId,
+    range: `${LADDER_TAB}!A2:U`,
+  });
+  console.log('[Ladder] clearLadderForNewSeason: all player rows cleared');
+}

@@ -90,6 +90,11 @@ export async function execute(interaction: Interaction): Promise<void> {
     const action = colonIdx === -1 ? interaction.customId : interaction.customId.slice(0, colonIdx);
     const payload = colonIdx === -1 ? '' : interaction.customId.slice(colonIdx + 1);
 
+    // Season open confirmation — handled by awaitMessageComponent in season.ts
+    if (action === 'season_open_confirm' || action === 'season_open_cancel') {
+      return;
+    }
+
     if (action === 'queue_join') {
       await interaction.deferReply({ ephemeral: true });
       await executeQueueJoin(interaction);
