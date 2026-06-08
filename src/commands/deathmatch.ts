@@ -73,7 +73,7 @@ export const command: Command = {
 
       // Filter out the sheet header row ("Build" key) and entries with no opponents
       const lines = [...dmMap.entries()]
-        .filter(([build, alts]) => alts.length > 0 && resolveBuild(build) !== null)
+        .filter(([build, alts]) => alts.length > 0 && resolveBuild(build) != null)
         .map(([build, alts]) => {
           const emoji = getClassEmoji(build);
           const buildLabel = emoji ? `${emoji} **${build}**` : `**${build}**`;
