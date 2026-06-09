@@ -168,12 +168,11 @@ export async function processMatchResult(
           ],
         });
 
-        // Lock then archive — locking prevents users from unarchiving via new messages
-        await thread.setLocked(true, 'Match completed').catch((lockErr) =>
-          console.warn(`[processMatchResult] Failed to lock thread for match #${match.id}:`, lockErr)
-        );
-        await thread.setArchived(true, 'Match completed').catch((archiveErr) =>
-          console.warn(`[processMatchResult] Failed to auto-archive thread for match #${match.id}:`, archiveErr)
+        // Lock and archive in a single edit call — sending both fields in one PATCH
+        // avoids the race condition where a second sequential PATCH is rejected because
+        // Discord's backend hasn't fully resolved the first mutation yet.
+        await thread.edit({ locked: true, archived: true }).catch((err) =>
+          console.error(`[processMatchResult] Failed to lock/archive thread for match #${match.id}:`, err)
         );
       }
     } catch (threadErr) {

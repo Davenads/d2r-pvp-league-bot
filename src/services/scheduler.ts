@@ -662,10 +662,10 @@ async function runThreadCleanup(client: Client): Promise<void> {
         // Use fetch() so cache-evicted threads (e.g. after dyno restart) are still found
         const channel = await client.channels.fetch(match.threadId).catch(() => null);
         if (channel?.isThread() && !channel.archived) {
-          if (!channel.locked) {
-            await channel.setLocked(true, 'Auto-locked 24h after match confirmation');
-          }
-          await channel.setArchived(true, 'Auto-archived 24h after match confirmation');
+          // Lock and archive in a single edit call — avoids the sequential-PATCH
+          // race condition where Discord rejects the second mutation before the
+          // first has fully resolved on the backend.
+          await channel.edit({ locked: true, archived: true });
           archived++;
         }
       } catch (threadErr) {
