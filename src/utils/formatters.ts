@@ -1,4 +1,4 @@
-import { EmbedBuilder, Colors } from 'discord.js';
+import { EmbedBuilder, Colors, escapeMarkdown } from 'discord.js';
 import type { LadderEntry } from '../types/index.js';
 import type { ClassRulesEntry } from '../services/content.js';
 import { getClassEmoji, CLASS_EMOJIS, CAIN_EMOJI } from './classEmojis.js';
@@ -93,7 +93,7 @@ export function buildLadderEmbed(entries: LadderEntry[], page: number, totalPage
   const rows = sorted
     .map((e) => {
       const rankLabel = e.rank > 0 && !isNaN(e.rank) ? `#${e.rank}` : '—';
-      return `**${rankLabel}** ${e.discordUsername} *(${e.points} pts)*`;
+      return `**${rankLabel}** ${escapeMarkdown(e.discordUsername)} *(${e.points} pts)*`;
     })
     .join('\n');
 

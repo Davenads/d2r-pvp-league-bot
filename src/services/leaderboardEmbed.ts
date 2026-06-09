@@ -8,7 +8,7 @@
  */
 
 import type { Client } from 'discord.js';
-import { EmbedBuilder, Colors, TextChannel } from 'discord.js';
+import { EmbedBuilder, Colors, TextChannel, escapeMarkdown } from 'discord.js';
 import { fetchLadder } from './sheets.js';
 import { cacheGet, cacheSet } from './cache.js';
 import { CacheKeys } from '../types/index.js';
@@ -70,7 +70,7 @@ function buildLeaderboardEmbed(entries: LadderEntry[]): EmbedBuilder {
     sorted.length > 0
       ? sorted.map((e) => {
           const rankLabel = e.rank > 0 && !isNaN(e.rank) ? `#${e.rank}` : '—';
-          return `**${rankLabel}** ${e.discordUsername}`;
+          return `**${rankLabel}** ${escapeMarkdown(e.discordUsername)}`;
         }).join('\n')
       : '*No active players on the ladder yet.*';
 
