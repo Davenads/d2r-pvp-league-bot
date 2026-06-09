@@ -6,6 +6,24 @@ import { getDeathmatches as getAllDeathmatches } from '../services/content.js';
 import { buildErrorEmbed, buildUnavailableEmbed, EMBED_COLORS } from '../utils/formatters.js';
 import { getClassEmoji, CAIN_EMOJI } from '../utils/classEmojis.js';
 
+function buildDeathmatchInfoEmbed(): EmbedBuilder {
+  return new EmbedBuilder()
+    .setColor(EMBED_COLORS.info)
+    .setTitle('What is a Deathmatch?')
+    .setDescription(
+      [
+        'When two players are matched and either build lists the other as a deathmatch opponent, the match format changes.',
+        '',
+        '**Format:** FT2 (First to 2 wins) instead of FT4',
+        '**Points:** Same as a standard match — +1 win / 0 loss',
+        '**Trigger:** Automatic at queue time — no action needed from players',
+        '',
+        'Only one build needs to list the other. The relationship is **not** required to be mutual.',
+        'Deathmatch pairings are defined by the mods in the league sheet.',
+      ].join('\n')
+    );
+}
+
 export const command: Command = {
   data: new SlashCommandBuilder()
     .setName('deathmatch')
@@ -59,7 +77,7 @@ export const command: Command = {
           )
           .setFooter({ text: 'Contact a mod to trigger a deathmatch.' });
 
-        await interaction.editReply({ embeds: [embed] });
+        await interaction.editReply({ embeds: [embed, buildDeathmatchInfoEmbed()] });
       } catch (err) {
         console.error('[/deathmatch]', err);
         await interaction.editReply({ embeds: [buildUnavailableEmbed()] });
@@ -112,6 +130,7 @@ export const command: Command = {
       for (let i = 1; i < embeds.length; i++) {
         await interaction.followUp({ ephemeral: true, embeds: [embeds[i]] });
       }
+      await interaction.followUp({ ephemeral: true, embeds: [buildDeathmatchInfoEmbed()] });
     } catch (err) {
       console.error('[/deathmatch]', err);
       await interaction.editReply({ embeds: [buildUnavailableEmbed()] });
