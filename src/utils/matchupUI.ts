@@ -115,11 +115,6 @@ export async function postMatchAnnouncementEmbed(
       { name: `${p1Name} plays`, value: `${getClassEmoji(matchup.build1)} ${matchup.build1}`, inline: true },
       { name: `${p2Name} plays`, value: `${getClassEmoji(matchup.build2)} ${matchup.build2}`, inline: true },
       { name: 'Rules', value: matchTypeLine, inline: false },
-      {
-        name: 'When finished',
-        value: 'Use the **winner buttons** at the bottom of this thread to record the result.\nFor test rule matches, use `/report-win` with the `test_rule` option.\nFor disputes, contact a **1v1 moderator**.',
-        inline: false,
-      },
     )
     .setTimestamp();
 
