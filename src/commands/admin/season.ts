@@ -19,6 +19,7 @@ import { leaveQueue, removeActiveMatch, resolvePlayerStateAfterMatch } from '../
 import { getRedisClient } from '../../services/cache.js';
 import { updateLeaderboardEmbed } from '../../services/leaderboardEmbed.js';
 import { CHANNELS } from '../../config/channels.js';
+import { logActivity } from '../../utils/activityLogger.js';
 
 export const command: Command = {
   data: new SlashCommandBuilder()
@@ -114,6 +115,15 @@ export const command: Command = {
         }
 
         if (btn.customId === 'season_open_cancel') {
+          void logActivity(btn.client, {
+            type: 'button',
+            action: 'season_open_cancel',
+            label: 'Season Open Cancelled',
+            user: { id: btn.user.id, username: btn.user.username, displayName: btn.user.displayName },
+            channelId: btn.channelId,
+            guildId: btn.guildId,
+            timestamp: btn.createdAt,
+          });
           await btn.deferUpdate();
           await interaction.editReply({
             embeds: [
@@ -129,6 +139,16 @@ export const command: Command = {
         }
 
         // Confirmed — run the full reset sequence
+        void logActivity(btn.client, {
+          type: 'button',
+          action: 'season_open_confirm',
+          label: 'Season Open Confirmed',
+          user: { id: btn.user.id, username: btn.user.username, displayName: btn.user.displayName },
+          context: `New season: ${newSeasonName}`,
+          channelId: btn.channelId,
+          guildId: btn.guildId,
+          timestamp: btn.createdAt,
+        });
         await btn.deferUpdate();
 
         const redis = getRedisClient();

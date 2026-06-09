@@ -42,6 +42,7 @@ import { getGeneralRules, getClassRules } from '../services/content.js';
 import { buildClassRulesEmbed } from '../utils/formatters.js';
 import { parseRulesIntoSections, buildRulesEmbeds } from '../utils/rulesParser.js';
 import { CANONICAL_BUILDS } from '../utils/buildList.js';
+import { logActivity, serializeOptions } from '../utils/activityLogger.js';
 
 export const name = Events.InteractionCreate;
 export const once = false;
@@ -57,6 +58,20 @@ export async function execute(interaction: Interaction): Promise<void> {
       console.warn(`[Commands] Unknown command: ${interaction.commandName}`);
       return;
     }
+
+    void logActivity(client, {
+      type: 'command',
+      commandName: interaction.commandName,
+      user: {
+        id: interaction.user.id,
+        username: interaction.user.username,
+        displayName: interaction.user.displayName,
+      },
+      args: serializeOptions(interaction.options.data),
+      channelId: interaction.channelId,
+      guildId: interaction.guildId,
+      timestamp: interaction.createdAt,
+    });
 
     try {
       await command.execute(interaction);
@@ -97,6 +112,15 @@ export async function execute(interaction: Interaction): Promise<void> {
     }
 
     if (action === 'queue_join') {
+      void logActivity(interaction.client, {
+        type: 'button',
+        action: 'queue_join',
+        label: 'Join Queue',
+        user: { id: interaction.user.id, username: interaction.user.username, displayName: interaction.user.displayName },
+        channelId: interaction.channelId,
+        guildId: interaction.guildId,
+        timestamp: interaction.createdAt,
+      });
       await interaction.deferReply({ ephemeral: true });
       await executeQueueJoin(interaction);
       return;
@@ -160,6 +184,15 @@ export async function execute(interaction: Interaction): Promise<void> {
     }
 
     if (action === 'action_register') {
+      void logActivity(interaction.client, {
+        type: 'button',
+        action: 'action_register',
+        label: 'View Register Info',
+        user: { id: interaction.user.id, username: interaction.user.username, displayName: interaction.user.displayName },
+        channelId: interaction.channelId,
+        guildId: interaction.guildId,
+        timestamp: interaction.createdAt,
+      });
       await interaction.reply({
         ephemeral: true,
         content:
@@ -203,6 +236,16 @@ export async function execute(interaction: Interaction): Promise<void> {
 // payload: {matchId}:{winnerId}
 
 async function handleReportWinButton(interaction: ButtonInteraction, payload: string): Promise<void> {
+  void logActivity(interaction.client, {
+    type: 'button',
+    action: 'report_win',
+    label: 'Report Win',
+    user: { id: interaction.user.id, username: interaction.user.username, displayName: interaction.user.displayName },
+    payload,
+    channelId: interaction.channelId,
+    guildId: interaction.guildId,
+    timestamp: interaction.createdAt,
+  });
   await interaction.deferReply({ ephemeral: true });
 
   try {
@@ -294,6 +337,16 @@ async function handleArchiveThread(interaction: ButtonInteraction, payload: stri
 // payload: {p1Id}:{p2Id}
 
 async function handleCancelMatch(interaction: ButtonInteraction, payload: string): Promise<void> {
+  void logActivity(interaction.client, {
+    type: 'button',
+    action: 'cancel_match',
+    label: 'Re-queue Both',
+    user: { id: interaction.user.id, username: interaction.user.username, displayName: interaction.user.displayName },
+    payload,
+    channelId: interaction.channelId,
+    guildId: interaction.guildId,
+    timestamp: interaction.createdAt,
+  });
   await interaction.deferReply({ ephemeral: true });
 
   try {
@@ -351,6 +404,16 @@ async function handleCancelMatch(interaction: ButtonInteraction, payload: string
 // payload: {p1Id}:{p2Id}:{matchType}
 
 async function handleOverrideBanned(interaction: ButtonInteraction, payload: string): Promise<void> {
+  void logActivity(interaction.client, {
+    type: 'button',
+    action: 'override_banned',
+    label: 'Override Banned Matchup',
+    user: { id: interaction.user.id, username: interaction.user.username, displayName: interaction.user.displayName },
+    payload,
+    channelId: interaction.channelId,
+    guildId: interaction.guildId,
+    timestamp: interaction.createdAt,
+  });
   await interaction.deferReply({ ephemeral: true });
 
   try {
@@ -454,6 +517,16 @@ async function handleOverrideBanned(interaction: ButtonInteraction, payload: str
 // ── Mirror accept handler ─────────────────────────────────────────────────────
 
 async function handleMirrorAccept(interaction: ButtonInteraction, nonce: string): Promise<void> {
+  void logActivity(interaction.client, {
+    type: 'button',
+    action: 'mirror_accept',
+    label: 'Mirror Accept',
+    user: { id: interaction.user.id, username: interaction.user.username, displayName: interaction.user.displayName },
+    payload: nonce,
+    channelId: interaction.channelId,
+    guildId: interaction.guildId,
+    timestamp: interaction.createdAt,
+  });
   await interaction.deferReply({ ephemeral: true });
 
   try {
@@ -589,6 +662,16 @@ async function handleMirrorAccept(interaction: ButtonInteraction, nonce: string)
 // payload: {matchId}
 
 async function handleRcCheckin(interaction: ButtonInteraction, payload: string): Promise<void> {
+  void logActivity(interaction.client, {
+    type: 'button',
+    action: 'rc_checkin',
+    label: 'Ready Check',
+    user: { id: interaction.user.id, username: interaction.user.username, displayName: interaction.user.displayName },
+    payload,
+    channelId: interaction.channelId,
+    guildId: interaction.guildId,
+    timestamp: interaction.createdAt,
+  });
   await interaction.deferReply({ ephemeral: true });
 
   try {
@@ -663,6 +746,16 @@ async function handleRcCheckin(interaction: ButtonInteraction, payload: string):
 // payload: {matchId}
 
 async function handleExtendRequest(interaction: ButtonInteraction, payload: string): Promise<void> {
+  void logActivity(interaction.client, {
+    type: 'button',
+    action: 'extend_req',
+    label: 'Request Extension',
+    user: { id: interaction.user.id, username: interaction.user.username, displayName: interaction.user.displayName },
+    payload,
+    channelId: interaction.channelId,
+    guildId: interaction.guildId,
+    timestamp: interaction.createdAt,
+  });
   await interaction.deferReply({ ephemeral: true });
 
   try {
@@ -769,6 +862,16 @@ async function handleExtendRequest(interaction: ButtonInteraction, payload: stri
 // payload: {matchId}
 
 async function handleExtendAccept(interaction: ButtonInteraction, payload: string): Promise<void> {
+  void logActivity(interaction.client, {
+    type: 'button',
+    action: 'extend_accept',
+    label: 'Accept Extension',
+    user: { id: interaction.user.id, username: interaction.user.username, displayName: interaction.user.displayName },
+    payload,
+    channelId: interaction.channelId,
+    guildId: interaction.guildId,
+    timestamp: interaction.createdAt,
+  });
   await interaction.deferReply({ ephemeral: true });
 
   try {
@@ -845,6 +948,16 @@ async function handleExtendAccept(interaction: ButtonInteraction, payload: strin
 // payload: {matchId}
 
 async function handleExtendDecline(interaction: ButtonInteraction, payload: string): Promise<void> {
+  void logActivity(interaction.client, {
+    type: 'button',
+    action: 'extend_decline',
+    label: 'Decline Extension',
+    user: { id: interaction.user.id, username: interaction.user.username, displayName: interaction.user.displayName },
+    payload,
+    channelId: interaction.channelId,
+    guildId: interaction.guildId,
+    timestamp: interaction.createdAt,
+  });
   await interaction.deferReply({ ephemeral: true });
 
   try {
@@ -920,6 +1033,16 @@ async function handleExtendDecline(interaction: ButtonInteraction, payload: stri
 // ── Mirror decline handler ────────────────────────────────────────────────────
 
 async function handleMirrorDecline(interaction: ButtonInteraction, nonce: string): Promise<void> {
+  void logActivity(interaction.client, {
+    type: 'button',
+    action: 'mirror_decline',
+    label: 'Mirror Decline',
+    user: { id: interaction.user.id, username: interaction.user.username, displayName: interaction.user.displayName },
+    payload: nonce,
+    channelId: interaction.channelId,
+    guildId: interaction.guildId,
+    timestamp: interaction.createdAt,
+  });
   await interaction.deferReply({ ephemeral: true });
 
   try {
@@ -969,6 +1092,15 @@ async function handleMirrorDecline(interaction: ButtonInteraction, nonce: string
 // All responses are ephemeral — only the clicker sees them.
 
 async function handleInfoBuilds(interaction: ButtonInteraction): Promise<void> {
+  void logActivity(interaction.client, {
+    type: 'button',
+    action: 'info_builds',
+    label: 'View Valid Builds',
+    user: { id: interaction.user.id, username: interaction.user.username, displayName: interaction.user.displayName },
+    channelId: interaction.channelId,
+    guildId: interaction.guildId,
+    timestamp: interaction.createdAt,
+  });
   // Group builds by class for readable display
   const byClass: Record<string, string[]> = {};
   for (const build of CANONICAL_BUILDS) {
@@ -996,6 +1128,15 @@ async function handleInfoBuilds(interaction: ButtonInteraction): Promise<void> {
 }
 
 async function handleInfoReport(interaction: ButtonInteraction): Promise<void> {
+  void logActivity(interaction.client, {
+    type: 'button',
+    action: 'info_report',
+    label: 'View Report Info',
+    user: { id: interaction.user.id, username: interaction.user.username, displayName: interaction.user.displayName },
+    channelId: interaction.channelId,
+    guildId: interaction.guildId,
+    timestamp: interaction.createdAt,
+  });
   await interaction.reply({
     ephemeral: true,
     embeds: [
@@ -1013,6 +1154,15 @@ async function handleInfoReport(interaction: ButtonInteraction): Promise<void> {
 }
 
 async function handleInfoCommands(interaction: ButtonInteraction): Promise<void> {
+  void logActivity(interaction.client, {
+    type: 'button',
+    action: 'info_commands',
+    label: 'View Commands',
+    user: { id: interaction.user.id, username: interaction.user.username, displayName: interaction.user.displayName },
+    channelId: interaction.channelId,
+    guildId: interaction.guildId,
+    timestamp: interaction.createdAt,
+  });
   await interaction.reply({
     ephemeral: true,
     embeds: [
@@ -1038,6 +1188,15 @@ async function handleInfoCommands(interaction: ButtonInteraction): Promise<void>
 }
 
 async function handleInfoRules(interaction: ButtonInteraction): Promise<void> {
+  void logActivity(interaction.client, {
+    type: 'button',
+    action: 'info_rules',
+    label: 'View Rules',
+    user: { id: interaction.user.id, username: interaction.user.username, displayName: interaction.user.displayName },
+    channelId: interaction.channelId,
+    guildId: interaction.guildId,
+    timestamp: interaction.createdAt,
+  });
   // deferReply is inside the try/catch so any failure is captured and logged.
   try {
     await interaction.deferReply({ ephemeral: true });
@@ -1090,6 +1249,15 @@ async function handleInfoRules(interaction: ButtonInteraction): Promise<void> {
 // after playing at least one match since their last vacation ended.
 
 async function handleVacationRequest(interaction: ButtonInteraction): Promise<void> {
+  void logActivity(interaction.client, {
+    type: 'button',
+    action: 'vacation_request',
+    label: 'Vacation Request',
+    user: { id: interaction.user.id, username: interaction.user.username, displayName: interaction.user.displayName },
+    channelId: interaction.channelId,
+    guildId: interaction.guildId,
+    timestamp: interaction.createdAt,
+  });
   await interaction.deferReply({ ephemeral: true });
 
   try {

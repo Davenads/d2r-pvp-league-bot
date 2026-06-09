@@ -2,6 +2,9 @@
 // These are non-sensitive snowflake IDs — safe to commit.
 
 export const CHANNELS = {
+  // Logging
+  activityLog:   '1165300795277848587', // logs
+
   // Mod-only
   modLogs:       '1491240646168543322', // 1v1-mod-ops
   modQueue:      '1491240646168543322', // 1v1-mod-ops (merged with modLogs)
