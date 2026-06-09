@@ -82,7 +82,9 @@ export const command: Command = {
         const buildLabel = emoji ? `${emoji} **${e.build}**` : `**${e.build}**`;
         const bannedLabels = e.banned.map((b) => {
           const bEmoji = getClassEmoji(b);
-          return bEmoji ? `${bEmoji} ${b}` : b;
+          const sepIdx = b.indexOf(' - ');
+          const shortName = sepIdx !== -1 ? b.slice(sepIdx + 3) : b;
+          return bEmoji ? `${bEmoji} ${shortName}` : shortName;
         });
         return `${buildLabel} — banned vs: ${bannedLabels.join(', ')}`;
       });
