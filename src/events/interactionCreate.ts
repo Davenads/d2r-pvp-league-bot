@@ -1038,37 +1038,49 @@ async function handleInfoCommands(interaction: ButtonInteraction): Promise<void>
 }
 
 async function handleInfoRules(interaction: ButtonInteraction): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
-
+  // deferReply is inside the try/catch so any failure is captured and logged.
   try {
+    await interaction.deferReply({ ephemeral: true });
+
     const [generalRules, classRulesMap] = await Promise.all([
       getGeneralRules(),
       getClassRules(),
     ]);
 
-    // General rules — use the same paginated pipeline as /rules to avoid
-    // Discord's 4096-char embed description limit.
+    // General rules — paginated by buildRulesEmbeds (max ~4000 chars per embed).
     const generalEmbeds = buildRulesEmbeds(parseRulesIntoSections(generalRules), 'rules');
 
-    // Collect all embeds (general + all class rules) then chunk into
-    // groups of 10 — Discord's per-message embed limit.
+    // Collect all embeds (general + all class rules).
     const allEmbeds: EmbedBuilder[] = [...generalEmbeds];
     for (const [className, entry] of classRulesMap.entries()) {
       allEmbeds.push(...buildClassRulesEmbed(className, entry));
     }
 
-    const CHUNK_SIZE = 10;
-    for (let i = 0; i < allEmbeds.length; i += CHUNK_SIZE) {
-      const chunk = allEmbeds.slice(i, i + CHUNK_SIZE);
+    if (allEmbeds.length === 0) {
+      await interaction.editReply({ embeds: [buildErrorEmbed('No rules found. Try /refresh-cache or contact a mod.')] });
+      return;
+    }
+
+    // Send ONE embed per message to stay under Discord's 6000-char total
+    // character limit that applies across ALL embeds in a single message.
+    // Sending multiple large embeds in bulk (e.g. 10 at once) triggers a
+    // 400 rejection when rule descriptions are long — this was the silent
+    // failure causing the button error with no Heroku logs.
+    for (let i = 0; i < allEmbeds.length; i++) {
       if (i === 0) {
-        await interaction.editReply({ embeds: chunk });
+        await interaction.editReply({ embeds: [allEmbeds[i]] });
       } else {
-        await interaction.followUp({ ephemeral: true, embeds: chunk });
+        await interaction.followUp({ ephemeral: true, embeds: [allEmbeds[i]] });
       }
     }
   } catch (err) {
     console.error('[info_rules]', err);
-    await interaction.editReply({ embeds: [buildErrorEmbed('Failed to load rules. Try again.')] });
+    // Guard: editReply only works after a successful deferReply.
+    if (interaction.deferred) {
+      await interaction.editReply({ embeds: [buildErrorEmbed('Failed to load rules. Try again.')] }).catch(() => null);
+    } else if (!interaction.replied) {
+      await interaction.reply({ ephemeral: true, embeds: [buildErrorEmbed('Failed to load rules. Try again.')] }).catch(() => null);
+    }
   }
 }
 
