@@ -1,16 +1,20 @@
 /**
  * /admin-force-match
  *
- * Mod-only command to create a tournament match between two registered players.
+ * Mod-only command to force a match between two registered players.
+ * Supports two match types via the optional `match_type` argument:
+ *   - Standard (default): normal result scoring — winner +1, loser +0
+ *   - Tournament: elevated scoring — winner +2, loser +1
+ *
  * - Computes all allowed build pairings via getAllowedMatchups
  * - Bot randomly selects one pairing and creates the Prisma Match record immediately
- * - Match type stored in Prisma is TOURNAMENT (winner +2, loser +1)
- * - If all pairings are banned, shows override prompt
+ * - If all pairings are banned, shows override prompt (preserves match type through to override)
  */
 
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
+  AutocompleteInteraction,
   EmbedBuilder,
   Colors,
   TextChannel,
@@ -32,16 +36,32 @@ import { ROLES } from '../../config/roles.js';
 import { assertModRole } from '../../utils/modGuard.js';
 import { postAllBannedEmbed, postMatchAnnouncementEmbed } from '../../utils/matchupUI.js';
 
+const MATCH_TYPE_CHOICES = ['Standard', 'Tournament'] as const;
+type ForceMatchType = typeof MATCH_TYPE_CHOICES[number];
+
 export const command: Command = {
   data: new SlashCommandBuilder()
     .setName('admin-force-match')
-    .setDescription('Force a tournament match between two players — winner +2 pts, loser +1 pt (mod only)')
+    .setDescription('Force a match between two players — Standard (default) or Tournament scoring (mod only)')
     .addUserOption((opt) =>
       opt.setName('player1').setDescription('First player').setRequired(true)
     )
     .addUserOption((opt) =>
       opt.setName('player2').setDescription('Second player').setRequired(true)
+    )
+    .addStringOption((opt) =>
+      opt
+        .setName('match_type')
+        .setDescription('Standard (winner +1) or Tournament (winner +2, loser +1) — defaults to Standard')
+        .setRequired(false)
+        .setAutocomplete(true)
     ),
+
+  async autocomplete(interaction: AutocompleteInteraction): Promise<void> {
+    const focused = interaction.options.getFocused().toLowerCase();
+    const filtered = MATCH_TYPE_CHOICES.filter((c) => c.toLowerCase().startsWith(focused));
+    await interaction.respond(filtered.map((c) => ({ name: c, value: c })));
+  },
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     await interaction.deferReply({ ephemeral: true });
@@ -49,6 +69,15 @@ export const command: Command = {
 
     const p1User = interaction.options.getUser('player1', true);
     const p2User = interaction.options.getUser('player2', true);
+    const matchTypeRaw = interaction.options.getString('match_type') ?? 'Standard';
+
+    // Normalise — accept any casing, fall back to Standard for unknown values
+    const matchTypeInput = MATCH_TYPE_CHOICES.find(
+      (c) => c.toLowerCase() === matchTypeRaw.toLowerCase()
+    ) ?? 'Standard' as ForceMatchType;
+
+    const isTournament = matchTypeInput === 'Tournament';
+    const prismaMatchType = isTournament ? 'TOURNAMENT' : 'STANDARD';
 
     if (p1User.id === p2User.id) {
       await interaction.editReply({ embeds: [buildErrorEmbed('player1 and player2 must be different users.')] });
@@ -102,6 +131,11 @@ export const command: Command = {
         setPlayerState(p2User.id, 'in_match'),
       ]);
 
+      // Thread name reflects match type
+      const threadName = isTournament
+        ? `Tournament: ${p1User.username} vs ${p2User.username}`
+        : `Match: ${p1User.username} vs ${p2User.username}`;
+
       // Create private match thread
       const threadParent = interaction.client.channels.cache.get(CHANNELS.matchThreads) as TextChannel | undefined;
       let thread: ThreadChannel | undefined;
@@ -109,9 +143,9 @@ export const command: Command = {
       if (threadParent) {
         try {
           thread = await threadParent.threads.create({
-            name: `Tournament: ${p1User.username} vs ${p2User.username}`,
+            name: threadName,
             type: ChannelType.PrivateThread,
-            reason: `D2R 1v1 League tournament match`,
+            reason: `D2R 1v1 League forced ${matchTypeInput.toLowerCase()} match`,
           }) as ThreadChannel;
 
           await thread.members.add(p1User.id);
@@ -128,7 +162,6 @@ export const command: Command = {
                   console.warn(`[/admin-force-match] Could not add mod ${modId} to thread`);
                 });
               }
-              // Ping the mod role so all mods receive a notification
               await thread.send({ content: `<@&${ROLES.mod}>` }).catch(() => {
                 console.warn('[/admin-force-match] Could not post mod ping in thread');
               });
@@ -140,19 +173,22 @@ export const command: Command = {
       }
 
       if (allBanned) {
-        // All pairings banned — post override prompt; no Match record yet
+        // All pairings banned — post override prompt; pass match type so override handler uses it
         if (thread) {
-          await postAllBannedEmbed(thread, p1User.id, p2User.id, 'TOURNAMENT');
+          await postAllBannedEmbed(thread, p1User.id, p2User.id, prismaMatchType as 'STANDARD' | 'TOURNAMENT');
         }
 
-        // Post public notification
+        const bannedTitle = isTournament
+          ? `${CAIN_EMOJI} Tournament Match — All Pairings Banned`
+          : `${CAIN_EMOJI} Forced Match — All Pairings Banned`;
+
         const resultsChannel = interaction.client.channels.cache.get(CHANNELS.matchResults) as TextChannel | undefined;
         if (resultsChannel) {
           await resultsChannel.send({
             embeds: [
               new EmbedBuilder()
                 .setColor(EMBED_COLORS.warning)
-                .setTitle(`${CAIN_EMOJI} Tournament Match — All Pairings Banned`)
+                .setTitle(bannedTitle)
                 .setDescription(
                   `<@${p1User.id}> vs <@${p2User.id}> — awaiting override decision` +
                   (thread ? `\n\n**Thread:** <#${thread.id}>` : '')
@@ -182,7 +218,7 @@ export const command: Command = {
       // Randomly select a pairing
       const selected = selectRandomPairing(available);
 
-      // Create Prisma Match record immediately with TOURNAMENT type
+      // Create Prisma Match record immediately
       const match = await prisma.match.create({
         data: {
           seasonId: season.id,
@@ -190,7 +226,7 @@ export const command: Command = {
           player2Id: p2Record.id,
           build1Used: selected.build1,
           build2Used: selected.build2,
-          type: 'TOURNAMENT',
+          type: prismaMatchType,
           status: 'PENDING',
           threadId: thread?.id,
         },
@@ -207,24 +243,30 @@ export const command: Command = {
           p1User.id,
           p2User.id,
           match.id,
-          true,  // isTournament
+          isTournament,
         );
       }
 
       // Post public notification to #1v1-match-results
       const resultsChannel = interaction.client.channels.cache.get(CHANNELS.matchResults) as TextChannel | undefined;
       if (resultsChannel) {
+        const publicDescription = isTournament
+          ? `<@${p1User.id}> vs <@${p2User.id}>\n` +
+            `**Matchup:** ${selected.build1} vs ${selected.build2}\n` +
+            `**Points:** Winner **+2** | Loser **+1**` +
+            (thread ? `\n\n**Thread:** <#${thread.id}>` : '')
+          : `<@${p1User.id}> vs <@${p2User.id}>\n` +
+            `**Matchup:** ${selected.build1} vs ${selected.build2}` +
+            (thread ? `\n\n**Thread:** <#${thread.id}>` : '');
+
         await resultsChannel.send({
           embeds: [
             new EmbedBuilder()
               .setColor(Colors.Gold)
-              .setTitle(`${CAIN_EMOJI} Tournament Match Assigned`)
-              .setDescription(
-                `<@${p1User.id}> vs <@${p2User.id}>\n` +
-                `**Matchup:** ${selected.build1} vs ${selected.build2}\n` +
-                `**Points:** Winner **+2** | Loser **+1**` +
-                (thread ? `\n\n**Thread:** <#${thread.id}>` : '')
-              )
+              .setTitle(isTournament
+                ? `${CAIN_EMOJI} Tournament Match Assigned`
+                : `${CAIN_EMOJI} Match Assigned (Forced)`)
+              .setDescription(publicDescription)
               .setTimestamp(),
           ],
         });
@@ -237,9 +279,12 @@ export const command: Command = {
           embeds: [
             new EmbedBuilder()
               .setColor(EMBED_COLORS.warning)
-              .setTitle(`${CAIN_EMOJI} Admin: Tournament Match Created`)
+              .setTitle(isTournament
+                ? `${CAIN_EMOJI} Admin: Tournament Match Created`
+                : `${CAIN_EMOJI} Admin: Standard Match Forced`)
               .addFields(
                 { name: 'Created By', value: `<@${interaction.user.id}>`, inline: true },
+                { name: 'Match Type', value: matchTypeInput, inline: true },
                 { name: 'Player 1', value: `<@${p1User.id}> (${selected.build1})`, inline: true },
                 { name: 'Player 2', value: `<@${p2User.id}> (${selected.build2})`, inline: true },
                 { name: 'Match #', value: String(match.id), inline: true },
@@ -251,18 +296,24 @@ export const command: Command = {
       }
 
       // Ephemeral reply to mod
+      const replyFooter = isTournament
+        ? 'Winner +2 pts | Loser +1 pt — applied on result confirm.'
+        : 'Winner +1 pt | Loser +0 pts — applied on result confirm.';
+
       await interaction.editReply({
         embeds: [
           new EmbedBuilder()
             .setColor(Colors.Green)
-            .setTitle(`${CAIN_EMOJI} Tournament Match Created`)
+            .setTitle(isTournament
+              ? `${CAIN_EMOJI} Tournament Match Created`
+              : `${CAIN_EMOJI} Match Forced (Standard)`)
             .setDescription(
               (stateWarning ? stateWarning + '\n' : '') +
-              `Tournament match #${match.id} created between <@${p1User.id}> and <@${p2User.id}>.\n\n` +
+              `Match #${match.id} (${matchTypeInput}) created between <@${p1User.id}> and <@${p2User.id}>.\n\n` +
               `**Matchup:** ${selected.build1} vs ${selected.build2}` +
               (thread ? `\n\n**Thread:** <#${thread.id}>` : '')
             )
-            .setFooter({ text: 'Winner +2 pts | Loser +1 pt — applied on result confirm.' })
+            .setFooter({ text: replyFooter })
             .setTimestamp(),
         ],
       });
