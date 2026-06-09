@@ -110,6 +110,8 @@ export interface BuildPairing {
   build1: string;
   build2: string;
   type?: 'STANDARD' | 'DEATHMATCH';
+  /** When type === 'DEATHMATCH': the build that plays FT2 (column A in the sheet). The other plays FT4. */
+  ft2Build?: string;
 }
 
 /**
@@ -123,4 +125,6 @@ export interface MatchFound {
   selectedMatchup: { build1: string; build2: string };   // randomly chosen pairing
   matchType: 'STANDARD' | 'DEATHMATCH';                  // pairing type
   allBanned: boolean;                                     // true if override flow was triggered
+  /** When matchType === 'DEATHMATCH': the build that plays FT2 (column A in the sheet). */
+  ft2Build?: string;
 }

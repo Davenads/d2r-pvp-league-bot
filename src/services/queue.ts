@@ -219,8 +219,9 @@ export async function getAllowedMatchups(
   for (const b1 of p1Builds) {
     for (const b2 of p2Builds) {
       const banned = await isMatchupBanned(b1, b2);
-      const pairingType = isPairingDeathmatch(b1, b2, deathmatches) ? 'DEATHMATCH' : 'STANDARD';
-      const pairing: BuildPairing = { build1: b1, build2: b2, type: pairingType };
+      const ft2Build = getDeathmatchFt2Build(b1, b2, deathmatches);
+      const pairingType: 'STANDARD' | 'DEATHMATCH' = ft2Build ? 'DEATHMATCH' : 'STANDARD';
+      const pairing: BuildPairing = { build1: b1, build2: b2, type: pairingType, ...(ft2Build ? { ft2Build } : {}) };
       all.push(pairing);
       if (!banned) available.push(pairing);
     }
@@ -230,12 +231,18 @@ export async function getAllowedMatchups(
 }
 
 /**
- * Returns true if either build lists the other as a deathmatch opponent.
+ * Returns the FT2 build if this is a deathmatch pairing, or null if not.
+ * The build in column A of the sheet (the "pointer" build) plays FT2.
+ * The builds listed in columns B–F (the opponents) play FT4.
+ * b1 is checked first — if b1 lists b2, b1 is the FT2 side.
+ * If b2 lists b1, b2 is the FT2 side.
  */
-function isPairingDeathmatch(b1: string, b2: string, deathmatches: Map<string, string[]>): boolean {
+function getDeathmatchFt2Build(b1: string, b2: string, deathmatches: Map<string, string[]>): string | null {
   const b1Dms = deathmatches.get(b1) ?? [];
+  if (b1Dms.includes(b2)) return b1;
   const b2Dms = deathmatches.get(b2) ?? [];
-  return b1Dms.includes(b2) || b2Dms.includes(b1);
+  if (b2Dms.includes(b1)) return b2;
+  return null;
 }
 
 /**
@@ -352,6 +359,7 @@ export async function joinQueue(joinerDiscordId: string): Promise<QueueJoinOutco
       selectedMatchup: { build1: selected.build1, build2: selected.build2 },
       matchType: selected.type === 'DEATHMATCH' ? 'DEATHMATCH' : 'STANDARD',
       allBanned: false,
+      ft2Build: selected.ft2Build,
     };
   }
 

@@ -12,9 +12,10 @@ function buildDeathmatchInfoEmbed(): EmbedBuilder {
     .setTitle('What is a Deathmatch?')
     .setDescription(
       [
-        'When two players are matched and either build lists the other as a deathmatch opponent, the match format changes.',
+        'When two players are matched and one build lists the other as a deathmatch opponent, the match format is **asymmetric**.',
         '',
-        '**Format:** FT2 (First to 2 wins) instead of FT4',
+        '**The listed build (column A)** plays **FT2** (First to 2 wins)',
+        '**The opponent build** plays **FT4** (First to 4 wins)',
         '**Points:** Same as a standard match — +1 win / 0 loss',
         '**Trigger:** Automatic at queue time — no action needed from players',
         '',
@@ -71,11 +72,13 @@ export const command: Command = {
             result.alternatives.length
               ? result.alternatives.map((alt, i) => {
                   const altEmoji = getClassEmoji(alt);
-                  return `${i + 1}. ${altEmoji ? altEmoji + ' ' : ''}${alt}`;
+                  const sepIdx = alt.indexOf(' - ');
+                  const shortName = sepIdx !== -1 ? alt.slice(sepIdx + 3) : alt;
+                  return `${i + 1}. ${altEmoji ? altEmoji + ' ' : ''}${shortName} **(FT4)**`;
                 }).join('\n')
               : '*No deathmatch opponents listed for this build.*'
           )
-          .setFooter({ text: 'Contact a mod to trigger a deathmatch.' });
+          .setFooter({ text: `${build} plays FT2 · Opponents play FT4` });
 
         await interaction.editReply({ embeds: [embed, buildDeathmatchInfoEmbed()] });
       } catch (err) {
@@ -94,12 +97,12 @@ export const command: Command = {
         .filter(([build, alts]) => alts.length > 0 && resolveBuild(build) != null)
         .map(([build, alts]) => {
           const emoji = getClassEmoji(build);
-          const buildLabel = emoji ? `${emoji} **${build}**` : `**${build}**`;
+          const buildLabel = emoji ? `${emoji} **${build}** (FT2)` : `**${build}** (FT2)`;
           const altLabels = alts.map((alt) => {
             const altEmoji = getClassEmoji(alt);
             const sepIdx = alt.indexOf(' - ');
             const shortName = sepIdx !== -1 ? alt.slice(sepIdx + 3) : alt;
-            return altEmoji ? `${altEmoji} ${shortName}` : shortName;
+            return altEmoji ? `${altEmoji} ${shortName} (FT4)` : `${shortName} (FT4)`;
           });
           return `${buildLabel} — ${altLabels.join(', ')}`;
         });

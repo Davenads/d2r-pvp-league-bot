@@ -89,9 +89,16 @@ export async function postMatchAnnouncementEmbed(
   const p1Name = p1User?.displayName ?? `<@${p1Id}>`;
   const p2Name = p2User?.displayName ?? `<@${p2Id}>`;
 
-  const matchTypeLine = matchup.type === 'DEATHMATCH'
-    ? 'Match type: **Deathmatch (FT2)**'
-    : 'Match type: **Standard (FT4)**';
+  let matchTypeLine: string;
+  if (matchup.type === 'DEATHMATCH' && matchup.ft2Build) {
+    const ft2Name = matchup.ft2Build === matchup.build1 ? p1Name : p2Name;
+    const ft4Name = matchup.ft2Build === matchup.build1 ? p2Name : p1Name;
+    matchTypeLine = `Match type: **Deathmatch** — ${ft2Name} plays **FT2** | ${ft4Name} plays **FT4**`;
+  } else if (matchup.type === 'DEATHMATCH') {
+    matchTypeLine = 'Match type: **Deathmatch (FT2)**';
+  } else {
+    matchTypeLine = 'Match type: **Standard (FT4)**';
+  }
 
   const tournamentNote = isTournament
     ? '\n\nThis is a **tournament match** — Winner **+2 pts** | Loser **+1 pt**.'
@@ -169,9 +176,16 @@ export async function postMatchBottomPanel(
   const p1Name = p1DisplayName ?? `<@${p1Id}>`;
   const p2Name = p2DisplayName ?? `<@${p2Id}>`;
 
-  const matchTypeLine = matchup.type === 'DEATHMATCH'
-    ? 'Deathmatch — **FT2**'
-    : 'Standard — **FT4**';
+  let matchTypeLine: string;
+  if (matchup.type === 'DEATHMATCH' && matchup.ft2Build) {
+    const ft2Name = matchup.ft2Build === matchup.build1 ? p1Name : p2Name;
+    const ft4Name = matchup.ft2Build === matchup.build1 ? p2Name : p1Name;
+    matchTypeLine = `Deathmatch — ${ft2Name} **FT2** | ${ft4Name} **FT4**`;
+  } else if (matchup.type === 'DEATHMATCH') {
+    matchTypeLine = 'Deathmatch — **FT2**';
+  } else {
+    matchTypeLine = 'Standard — **FT4**';
+  }
 
   const recap = new EmbedBuilder()
     .setColor(Colors.DarkGold)

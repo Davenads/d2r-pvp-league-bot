@@ -114,7 +114,7 @@ export const command: Command = {
 
       // ── Match found immediately ───────────────────────────────────────────────
 
-      const { opponentDiscordId, matchId, selectedMatchup, matchType, allBanned } = outcome;
+      const { opponentDiscordId, matchId, selectedMatchup, matchType, allBanned, ft2Build } = outcome;
 
       const opponentUser = await interaction.client.users.fetch(opponentDiscordId).catch(() => null);
       const threadName = `Match: ${targetUser.username} vs ${opponentUser?.username ?? 'Opponent'}`;
@@ -142,7 +142,7 @@ export const command: Command = {
           } else {
             await postMatchAnnouncementEmbed(
               thread,
-              { build1: selectedMatchup.build1, build2: selectedMatchup.build2, type: matchType },
+              { build1: selectedMatchup.build1, build2: selectedMatchup.build2, type: matchType, ft2Build },
               targetUser.id,
               opponentDiscordId,
               matchId,

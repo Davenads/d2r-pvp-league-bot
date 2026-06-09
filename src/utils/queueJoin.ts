@@ -128,7 +128,7 @@ export async function executeQueueJoin(interaction: QueueInteraction): Promise<v
 
     // ── Match found ──────────────────────────────────────────────────────────
 
-    const { opponentDiscordId, matchId, selectedMatchup, matchType, allBanned } = outcome;
+    const { opponentDiscordId, matchId, selectedMatchup, matchType, allBanned, ft2Build } = outcome;
 
     const opponentUser = await interaction.client.users.fetch(opponentDiscordId).catch(() => null);
     const threadName = `Match: ${interaction.user.username} vs ${opponentUser?.username ?? 'Opponent'}`;
@@ -175,7 +175,7 @@ export async function executeQueueJoin(interaction: QueueInteraction): Promise<v
         } else {
           await postMatchAnnouncementEmbed(
             thread,
-            { build1: selectedMatchup.build1, build2: selectedMatchup.build2, type: matchType },
+            { build1: selectedMatchup.build1, build2: selectedMatchup.build2, type: matchType, ft2Build },
             discordId,
             opponentDiscordId,
             matchId,
