@@ -74,7 +74,7 @@ export const command: Command = {
                   const altEmoji = getClassEmoji(alt);
                   const sepIdx = alt.indexOf(' - ');
                   const shortName = sepIdx !== -1 ? alt.slice(sepIdx + 3) : alt;
-                  return `${i + 1}. ${altEmoji ? altEmoji + ' ' : ''}${shortName} **(FT4)**`;
+                  return `${i + 1}. ${altEmoji ? altEmoji + ' ' : ''}${shortName}`;
                 }).join('\n')
               : '*No deathmatch opponents listed for this build.*'
           )
@@ -97,12 +97,12 @@ export const command: Command = {
         .filter(([build, alts]) => alts.length > 0 && resolveBuild(build) != null)
         .map(([build, alts]) => {
           const emoji = getClassEmoji(build);
-          const buildLabel = emoji ? `${emoji} **${build}** (FT2)` : `**${build}** (FT2)`;
+          const buildLabel = emoji ? `${emoji} **${build}**` : `**${build}**`;
           const altLabels = alts.map((alt) => {
             const altEmoji = getClassEmoji(alt);
             const sepIdx = alt.indexOf(' - ');
             const shortName = sepIdx !== -1 ? alt.slice(sepIdx + 3) : alt;
-            return altEmoji ? `${altEmoji} ${shortName} (FT4)` : `${shortName} (FT4)`;
+            return altEmoji ? `${altEmoji} ${shortName}` : shortName;
           });
           return `${buildLabel} — ${altLabels.join(', ')}`;
         });
@@ -121,11 +121,15 @@ export const command: Command = {
         currentLen += lineLen;
       }
 
+      const LEGEND = '-# **Bold** = FT2 · Regular = FT4\n';
       const embeds = pages.map((pageLines, i) =>
         new EmbedBuilder()
           .setColor(EMBED_COLORS.rules)
           .setTitle(i === 0 ? `${CAIN_EMOJI} All Deathmatch Matchups` : `${CAIN_EMOJI} All Deathmatch Matchups (continued)`)
-          .setDescription(pageLines.length ? pageLines.join('\n') : '*No deathmatch matchups found.*')
+          .setDescription(
+            (i === 0 ? LEGEND + '\n' : '') +
+            (pageLines.length ? pageLines.join('\n') : '*No deathmatch matchups found.*')
+          )
           .setFooter(i === pages.length - 1 ? { text: 'Use /deathmatch [build] to filter to a specific build.' } : null)
       );
 
