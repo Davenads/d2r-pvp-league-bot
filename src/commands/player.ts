@@ -1,6 +1,7 @@
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
+  AutocompleteInteraction,
   EmbedBuilder,
   Colors,
 } from 'discord.js';
@@ -19,38 +20,69 @@ export const command: Command = {
   data: new SlashCommandBuilder()
     .setName('player')
     .setDescription("Look up a player's stats and record")
-    .addUserOption((opt) =>
+    .addStringOption((opt) =>
       opt
         .setName('player')
         .setDescription('The player to look up (defaults to yourself)')
+        .setAutocomplete(true)
     ),
+
+  async autocomplete(interaction: AutocompleteInteraction): Promise<void> {
+    const focused = interaction.options.getFocused().toLowerCase();
+    try {
+      const season = await prisma.season.findFirst({ where: { active: true } });
+      if (!season) {
+        await interaction.respond([]);
+        return;
+      }
+      const players = await prisma.player.findMany({
+        where: {
+          seasonId: season.id,
+          status: { not: 'REMOVED' },
+          ...(focused
+            ? { discordUsername: { contains: focused, mode: 'insensitive' } }
+            : {}),
+        },
+        select: { discordId: true, discordUsername: true },
+        orderBy: { discordUsername: 'asc' },
+        take: 25,
+      });
+      await interaction.respond(
+        players.map((p) => ({ name: p.discordUsername, value: p.discordId })),
+      );
+    } catch {
+      await interaction.respond([]);
+    }
+  },
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     await interaction.deferReply({ ephemeral: true });
 
-    // Default to the command user if no target provided
-    const target = interaction.options.getUser('player') ?? interaction.user;
+    // Default to the command invoker if no selection made
+    const targetId = interaction.options.getString('player') ?? interaction.user.id;
 
     try {
       const season = await prisma.season.findFirst({ where: { active: true } });
       if (!season) {
-        await interaction.editReply({
-          embeds: [buildErrorEmbed('No active season.')],
-        });
+        await interaction.editReply({ embeds: [buildErrorEmbed('No active season.')] });
         return;
       }
 
+      // Fetch Discord user for avatar/display name (best-effort — falls back to stored username)
+      const target = await interaction.client.users.fetch(targetId).catch(() => null);
+
       const player = await prisma.player.findFirst({
-        where: { discordId: target.id, seasonId: season.id },
+        where: { discordId: targetId, seasonId: season.id },
       });
 
       if (!player) {
-        const isSelf = target.id === interaction.user.id;
+        const isSelf = targetId === interaction.user.id;
+        const displayName = target?.username ?? 'That player';
         await interaction.editReply({
           embeds: [buildErrorEmbed(
             isSelf
               ? "You aren't registered for this season. Use `/register` to join."
-              : `**${target.username}** is not registered in **${season.name}**.`
+              : `**${displayName}** is not registered in **${season.name}**.`
           )],
         });
         return;
@@ -105,10 +137,13 @@ export const command: Command = {
         REMOVED: 'Removed',
       };
 
+      const displayName = target?.username ?? player.discordUsername;
+      const thumbnail = target?.displayAvatarURL() ?? null;
+
       const embed = new EmbedBuilder()
         .setColor(player.status === 'REMOVED' ? Colors.Red : Colors.Gold)
-        .setTitle(`${CAIN_EMOJI} ${target.username} — ${season.name}`)
-        .setThumbnail(target.displayAvatarURL())
+        .setTitle(`${CAIN_EMOJI} ${displayName} — ${season.name}`)
+        .setThumbnail(thumbnail)
         .addFields(
           {
             name: 'Registered Builds',
@@ -136,7 +171,7 @@ export const command: Command = {
       await interaction.editReply({ embeds: [embed] });
     } catch (err) {
       console.error('[/player]', err);
-      await interaction.editReply({ embeds: [buildErrorEmbed('Failed to fetch player data. Try again later.') ]});
+      await interaction.editReply({ embeds: [buildErrorEmbed('Failed to fetch player data. Try again later.')] });
     }
   },
 };
