@@ -121,8 +121,17 @@ export async function execute(interaction: Interaction): Promise<void> {
         guildId: interaction.guildId,
         timestamp: interaction.createdAt,
       });
-      await interaction.deferReply({ ephemeral: true });
-      await executeQueueJoin(interaction);
+      try {
+        await interaction.deferReply({ ephemeral: true });
+        await executeQueueJoin(interaction);
+      } catch (err) {
+        console.error('[queue_join button]', err);
+        if (interaction.deferred) {
+          await interaction.editReply({ embeds: [buildErrorEmbed('Something went wrong. Try again.')] }).catch(() => null);
+        } else if (!interaction.replied) {
+          await interaction.reply({ ephemeral: true, embeds: [buildErrorEmbed('Something went wrong. Try again.')] }).catch(() => null);
+        }
+      }
       return;
     }
 
@@ -193,14 +202,21 @@ export async function execute(interaction: Interaction): Promise<void> {
         guildId: interaction.guildId,
         timestamp: interaction.createdAt,
       });
-      await interaction.reply({
-        ephemeral: true,
-        content:
-          '**How to Register**\n\n' +
-          'Use the `/register` command and select your build from the autocomplete list.\n' +
-          'You can register up to 5 builds. Pick the ones you plan to play this season.\n\n' +
-          'Once registered, you\'ll appear on the leaderboard and can enter the queue.',
-      });
+      try {
+        await interaction.reply({
+          ephemeral: true,
+          content:
+            '**How to Register**\n\n' +
+            'Use the `/register` command and select your build from the autocomplete list.\n' +
+            'You can register up to 5 builds. Pick the ones you plan to play this season.\n\n' +
+            'Once registered, you\'ll appear on the leaderboard and can enter the queue.',
+        });
+      } catch (err) {
+        console.error('[action_register button]', err);
+        if (!interaction.replied) {
+          await interaction.reply({ ephemeral: true, embeds: [buildErrorEmbed('Something went wrong. Try again.')] }).catch(() => null);
+        }
+      }
       return;
     }
 
