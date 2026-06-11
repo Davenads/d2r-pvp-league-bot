@@ -42,6 +42,7 @@ import { getGeneralRules, getClassRules } from '../services/content.js';
 import { buildClassRulesEmbed } from '../utils/formatters.js';
 import { parseRulesIntoSections, buildRulesEmbeds } from '../utils/rulesParser.js';
 import { CANONICAL_BUILDS } from '../utils/buildList.js';
+import { CLASS_EMOJIS } from '../utils/classEmojis.js';
 import { logActivity, serializeOptions } from '../utils/activityLogger.js';
 
 export const name = Events.InteractionCreate;
@@ -1128,7 +1129,7 @@ async function handleInfoBuilds(interaction: ButtonInteraction): Promise<void> {
   }
 
   const lines = Object.entries(byClass)
-    .map(([cls, builds]) => `**${cls}:** ${builds.join(' | ')}`)
+    .map(([cls, builds]) => `${CLASS_EMOJIS[cls] ?? ''} **${cls}:** ${builds.join(' | ')}`)
     .join('\n');
 
   await interaction.reply({
