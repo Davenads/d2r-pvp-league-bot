@@ -481,6 +481,25 @@ async function runMatchReminder(client: Client): Promise<void> {
             .setStyle(ButtonStyle.Success),
         );
 
+        // Deadline: base = reportedAt + 3d; post-extension = extendedAt + 3d.
+        const deadlineBase = match.extendedAt ?? match.reportedAt;
+        const deadlineSec = Math.floor((deadlineBase.getTime() + THREE_DAYS_MS) / 1000);
+        const alreadyExtended = match.extendedAt !== null;
+
+        // Offer an Extend button only if the match hasn't been extended yet
+        // (only one extension is allowed per match).
+        const components = [winnerRow];
+        if (!alreadyExtended) {
+          components.push(
+            new ActionRowBuilder<ButtonBuilder>().addComponents(
+              new ButtonBuilder()
+                .setCustomId(`extend_req:${match.id}`)
+                .setLabel('Request Extension')
+                .setStyle(ButtonStyle.Secondary),
+            ),
+          );
+        }
+
         await thread.send({
           content: `<@${p1Id}> <@${p2Id}>`,
           embeds: [
@@ -489,11 +508,13 @@ async function runMatchReminder(client: Client): Promise<void> {
               .setTitle('⏰ Match Reminder')
               .setDescription(
                 `This match has been open for over **24 hours** with no result reported.\n\n` +
-                `Please wrap up your match and click the winner below.`
+                `**Match closes:** <t:${deadlineSec}:F> (<t:${deadlineSec}:R>)\n\n` +
+                `Please wrap up your match and click the winner below.` +
+                (alreadyExtended ? '' : ' Need more time? Use **Request Extension**.')
               )
               .setTimestamp(),
           ],
-          components: [winnerRow],
+          components,
         });
 
         reminded++;
