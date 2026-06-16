@@ -845,7 +845,7 @@ async function handleExtendRequest(interaction: ButtonInteraction, payload: stri
       );
 
       await thread.send({
-        content: `<@${opponentId}>`,
+        content: `<@${opponentId}> <@&${ROLES.mod}>`,
         embeds: [
           new EmbedBuilder()
             .setColor(Colors.Yellow)
