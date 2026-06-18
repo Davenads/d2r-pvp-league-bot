@@ -44,6 +44,7 @@ import { parseRulesIntoSections, buildRulesEmbeds } from '../utils/rulesParser.j
 import { CANONICAL_BUILDS } from '../utils/buildList.js';
 import { CLASS_EMOJIS } from '../utils/classEmojis.js';
 import { logActivity, serializeOptions } from '../utils/activityLogger.js';
+import { archiveForcedThread } from '../utils/forcedThread.js';
 
 export const name = Events.InteractionCreate;
 export const once = false;
@@ -1338,6 +1339,13 @@ async function handleVacationRequest(interaction: ButtonInteraction): Promise<vo
 
     // Clear the forced match assignment so the warning escalation job won't fire
     await clearForcedMatch(interaction.user.id);
+
+    // Close any open forced-assignment notification thread
+    await archiveForcedThread(
+      interaction.client,
+      interaction.user.id,
+      '🏖️ Forced assignment closed — player requested vacation.',
+    );
 
     const untilSec = Math.floor(hiatusUntil.getTime() / 1000);
 

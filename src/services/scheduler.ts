@@ -25,6 +25,7 @@ import { EmbedBuilder, Colors, ActionRowBuilder, ButtonBuilder, ButtonStyle, Cha
 import type { ThreadChannel } from 'discord.js';
 import { prisma } from '../db/client.js';
 import { getForcedMatch, setForcedMatch, clearForcedMatch, setForcedMatchThread, getQueueList, getPlayerState, setPlayerState, hasActiveMatches } from './queue.js';
+import { archiveForcedThread } from '../utils/forcedThread.js';
 import { updateLeaderboardEmbed } from './leaderboardEmbed.js';
 import { resolveMatchByReadyCheck } from './readyCheck.js';
 import { CHANNELS } from '../config/channels.js';
@@ -192,6 +193,10 @@ async function runCadenceCheck(client: Client): Promise<void> {
         // DMs may be closed — queue channel post is the fallback
       }
 
+      // Close any lingering forced-assignment thread from a prior cycle before
+      // opening a new one, so a player never has two open at once.
+      await archiveForcedThread(client, player.discordId, '🔁 Superseded by a new forced assignment.');
+
       // Create a private notification thread for this player (H1)
       const threadParent = client.channels.cache.get(CHANNELS.matchThreads) as TextChannel | undefined;
       if (threadParent) {
@@ -295,6 +300,13 @@ async function runWarningEscalation(client: Client): Promise<void> {
 
       // Clear the forced match assignment so they can be re-evaluated next cycle
       await clearForcedMatch(player.discordId);
+
+      // Close the forced-assignment notification thread now that it's escalated
+      await archiveForcedThread(
+        client,
+        player.discordId,
+        '⚠️ Forced assignment closed — escalated to a warning.',
+      );
 
       warningsIssued++;
 
