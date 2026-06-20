@@ -472,6 +472,11 @@ async function runMatchReminder(client: Client): Promise<void> {
         const thread = client.channels.cache.get(match.threadId);
         if (!thread?.isThread() || thread.archived) continue;
 
+        // Past the deadline the match belongs to the ready-check resolver, not the
+        // reminder. Skip it so a stuck/unresolvable match never gets pinged forever.
+        const deadlineMs = (match.extendedAt ?? match.reportedAt).getTime() + THREE_DAYS_MS;
+        if (deadlineMs <= Date.now()) continue;
+
         const p1Id = match.player1.discordId;
         const p2Id = match.player2.discordId;
 
@@ -493,9 +498,7 @@ async function runMatchReminder(client: Client): Promise<void> {
             .setStyle(ButtonStyle.Success),
         );
 
-        // Deadline: base = reportedAt + 3d; post-extension = extendedAt + 3d.
-        const deadlineBase = match.extendedAt ?? match.reportedAt;
-        const deadlineSec = Math.floor((deadlineBase.getTime() + THREE_DAYS_MS) / 1000);
+        const deadlineSec = Math.floor(deadlineMs / 1000);
         const alreadyExtended = match.extendedAt !== null;
 
         // Offer an Extend button only if the match hasn't been extended yet

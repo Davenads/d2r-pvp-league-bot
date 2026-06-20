@@ -158,7 +158,15 @@ export async function resolveMatchByReadyCheck(client: Client, matchId: number):
         return;
       }
 
-      // Already extended — still tied → mod escalation
+      // Already extended and still tied → mark the match DISPUTED so the deadline
+      // and reminder jobs stop re-processing it (both query status: PENDING), then
+      // escalate to mods once. DISPUTED is resolvable via /admin-set-result and
+      // /admin-cancel-match.
+      await prisma.match.update({
+        where: { id: matchId },
+        data: { status: 'DISPUTED' },
+      });
+
       const modLogsChannel = client.channels.cache.get(CHANNELS.modLogs) as TextChannel | undefined;
       if (modLogsChannel) {
         await modLogsChannel.send({
