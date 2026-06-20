@@ -8,7 +8,7 @@
  */
 
 import type { Client } from 'discord.js';
-import { EmbedBuilder, Colors, TextChannel, ThreadChannel } from 'discord.js';
+import { EmbedBuilder, Colors, TextChannel } from 'discord.js';
 import { prisma } from '../db/client.js';
 import { getRedisClient } from './cache.js';
 import { cacheDel } from './cache.js';
@@ -133,7 +133,9 @@ export async function resolveMatchByReadyCheck(client: Client, matchId: number):
         await prisma.match.update({ where: { id: matchId }, data: { extendedAt: new Date() } });
 
         if (match.threadId) {
-          const thread = client.channels.cache.get(match.threadId) as ThreadChannel | undefined;
+          const thread =
+            client.channels.cache.get(match.threadId) ??
+            (await client.channels.fetch(match.threadId).catch(() => null));
           if (thread?.isThread()) {
             await thread.send({
               content: `<@${p1Id}> <@${p2Id}>`,
@@ -283,7 +285,9 @@ export async function resolveMatchByReadyCheck(client: Client, matchId: number):
     // ── Post to match thread + archive ────────────────────────────────────────
 
     if (match.threadId) {
-      const thread = client.channels.cache.get(match.threadId) as ThreadChannel | undefined;
+      const thread =
+        client.channels.cache.get(match.threadId) ??
+        (await client.channels.fetch(match.threadId).catch(() => null));
       if (thread?.isThread()) {
         await thread.send({
           content: `<@${p1Id}> <@${p2Id}>`,

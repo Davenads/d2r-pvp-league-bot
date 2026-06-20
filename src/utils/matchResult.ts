@@ -7,7 +7,6 @@ import {
   EmbedBuilder,
   Colors,
   TextChannel,
-  ThreadChannel,
 } from 'discord.js';
 import type { Client } from 'discord.js';
 import { prisma } from '../db/client.js';
@@ -150,7 +149,12 @@ export async function processMatchResult(
   const resolvedThreadId = threadId ?? match.threadId;
   if (resolvedThreadId) {
     try {
-      const thread = client.channels.cache.get(resolvedThreadId) as ThreadChannel | undefined;
+      // Use fetch() with cache fallback so cache-evicted threads (common after a
+      // dyno restart) are still found. A cache-only lookup silently no-ops the
+      // result embed post AND the lock/archive, leaving the thread open forever.
+      const thread =
+        client.channels.cache.get(resolvedThreadId) ??
+        (await client.channels.fetch(resolvedThreadId).catch(() => null));
       if (thread?.isThread()) {
         await thread.send({
           content: `<@${winnerPlayer.discordId}> <@${loserPlayer.discordId}>`,
