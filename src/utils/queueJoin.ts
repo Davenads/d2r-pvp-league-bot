@@ -55,8 +55,14 @@ export async function executeQueueJoin(interaction: QueueInteraction): Promise<v
     }
 
     if (player.status === 'VACATION') {
-      await interaction.editReply({ embeds: [buildErrorEmbed('You are currently on vacation. Contact a mod to return to active status.')] });
-      return;
+      // A voluntary queue join is the player's "I'm back" signal, so end vacation
+      // early and fall through into the normal queue flow. hiatusUntil is left
+      // untouched so the "play a match before requesting another vacation" gate
+      // still holds.
+      await prisma.player.update({
+        where: { id: player.id },
+        data: { status: 'ACTIVE' },
+      });
     }
 
     const currentState = await getPlayerState(discordId);
