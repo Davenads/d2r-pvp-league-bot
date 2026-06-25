@@ -52,6 +52,12 @@ export const config = {
     warningThreshold: parseInt(optionalEnv('WARNING_THRESHOLD', '5'), 10),
     farmingCapMax: parseInt(optionalEnv('FARMING_CAP_MAX', '2'), 10),
     farmingCapHours: parseInt(optionalEnv('FARMING_CAP_HOURS', '24'), 10),
+    // Max concurrent unplayed (PENDING) matches allowed between the same two
+    // players. State-aware companion to the time-windowed farming cap: prevents a
+    // pair from stacking up matches they never actually duel. DISPUTED matches do
+    // not count (they are frozen awaiting a mod, so counting them could lock the
+    // pair out indefinitely).
+    openMatchCapMax: parseInt(optionalEnv('OPEN_MATCH_CAP_MAX', '2'), 10),
     matchCadenceDays: parseInt(optionalEnv('MATCH_CADENCE_DAYS', '3'), 10),
   },
   isDev: optionalEnv('NODE_ENV', 'development') === 'development',

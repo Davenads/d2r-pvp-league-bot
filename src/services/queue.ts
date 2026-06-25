@@ -157,6 +157,30 @@ export async function recordPairing(p1: string, p2: string): Promise<void> {
   await redis.pipeline().incr(key).expire(key, ttlSeconds).exec();
 }
 
+// ── Open-match cap ────────────────────────────────────────────────────────────
+
+/**
+ * Returns true if the two players already have the max number of concurrent
+ * unplayed matches between them. Unlike the time-windowed farming cap, this is
+ * state-aware: it counts live PENDING matches in Postgres so a pair cannot keep
+ * re-queueing into each other faster than they actually duel.
+ *
+ * Only PENDING counts — DISPUTED matches are frozen awaiting a mod, so counting
+ * them could lock the pair out of each other indefinitely.
+ */
+export async function hasMaxOpenMatches(p1DiscordId: string, p2DiscordId: string): Promise<boolean> {
+  const open = await prisma.match.count({
+    where: {
+      status: 'PENDING',
+      OR: [
+        { player1: { discordId: p1DiscordId }, player2: { discordId: p2DiscordId } },
+        { player1: { discordId: p2DiscordId }, player2: { discordId: p1DiscordId } },
+      ],
+    },
+  });
+  return open >= config.league.openMatchCapMax;
+}
+
 // ── FIFO queue ────────────────────────────────────────────────────────────────
 
 /** Returns full queue as ordered array of Discord IDs (oldest first). */
@@ -283,10 +307,16 @@ export async function joinQueue(joinerDiscordId: string): Promise<QueueJoinOutco
   // Peek at the front of the queue without removing
   const queueList = await redis.lrange(queueKey, 0, -1);
 
-  // Try to find a valid (non-farming-capped) opponent from the front of queue
+  // Try to find a valid opponent from the front of queue. Both gates run before
+  // the lrem so a skipped candidate stays in the queue untouched. Farming cap
+  // (Redis) runs first so it short-circuits before the open-match DB query.
   for (const candidateId of queueList) {
     const capped = await isFarmingCapped(joinerDiscordId, candidateId);
     if (capped) continue;
+
+    // Skip if the pair already has the max concurrent unplayed matches open.
+    const maxedOpen = await hasMaxOpenMatches(joinerDiscordId, candidateId);
+    if (maxedOpen) continue;
 
     // Found a valid opponent — remove them from queue
     await redis.lrem(queueKey, 1, candidateId);
