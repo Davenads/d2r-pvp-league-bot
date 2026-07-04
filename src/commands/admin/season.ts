@@ -61,6 +61,7 @@ export const command: Command = {
         const currentSeason = await prisma.season.findFirst({ where: { active: true } });
         const playerCount = await prisma.player.count({ where: { status: { notIn: ['REMOVED'] } } });
         const pendingMatchCount = await prisma.match.count({ where: { status: 'PENDING' } });
+        const warnedPlayerCount = await prisma.player.count({ where: { warnings: { gt: 0 } } });
 
         // Build the confirmation embed showing exactly what will be reset
         const infoEmbed = new EmbedBuilder()
@@ -83,6 +84,7 @@ export const command: Command = {
             { name: 'Players to Reset', value: `${playerCount} (will be marked REMOVED)`, inline: true },
             { name: 'Pending Matches to Void', value: String(pendingMatchCount), inline: true },
             { name: 'Ladder Sheet', value: 'All player rows will be cleared', inline: true },
+            { name: 'Warnings to Clear', value: `${warnedPlayerCount} player(s)`, inline: true },
           )
           .setFooter({ text: 'Expires in 5 minutes. Only you can confirm this action.' });
 
@@ -190,6 +192,13 @@ export const command: Command = {
           data: { status: 'REMOVED', removedAt: new Date() },
         });
 
+        // 3b. Reset warnings for a clean slate — zero every player's warning counter
+        //     AND delete the audit records. Both representations are kept in sync
+        //     elsewhere (issue/clear/decay), so both must be cleared here.
+        const warningsCleared = await prisma.player.count({ where: { warnings: { gt: 0 } } });
+        await prisma.player.updateMany({ data: { warnings: 0 } });
+        await prisma.warning.deleteMany({});
+
         // 4. Per-player Redis cleanup
         for (const { discordId } of affectedPlayers) {
           await leaveQueue(discordId);
@@ -249,6 +258,7 @@ export const command: Command = {
                 { name: 'Started', value: `<t:${Math.floor(newSeason.startedAt.getTime() / 1000)}:F>`, inline: true },
                 { name: 'Players Reset', value: String(affectedPlayers.length), inline: true },
                 { name: 'Matches Voided', value: String(pendingMatches.length), inline: true },
+                { name: 'Warnings Cleared', value: String(warningsCleared), inline: true },
               )
               .setTimestamp(),
           ],
