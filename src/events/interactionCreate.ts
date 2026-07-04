@@ -846,7 +846,8 @@ async function handleExtendRequest(interaction: ButtonInteraction, payload: stri
       );
 
       await thread.send({
-        content: `<@${opponentId}> <@&${ROLES.mod}>`,
+        // Ping only the opponent — mods are intentionally not notified of routine extensions
+        content: `<@${opponentId}>`,
         embeds: [
           new EmbedBuilder()
             .setColor(Colors.Yellow)
