@@ -14,7 +14,7 @@ import { CacheKeys } from '../../types/index.js';
 import { prisma } from '../../db/client.js';
 import { EMBED_COLORS, CAIN_EMOJI } from '../../utils/formatters.js';
 import { assertModRole } from '../../utils/modGuard.js';
-import { clearLadderForNewSeason } from '../../services/ladder.js';
+import { archiveLadderTab, clearLadderForNewSeason } from '../../services/ladder.js';
 import { leaveQueue, removeActiveMatch, resolvePlayerStateAfterMatch } from '../../services/queue.js';
 import { getRedisClient } from '../../services/cache.js';
 import { updateLeaderboardEmbed } from '../../services/leaderboardEmbed.js';
@@ -85,6 +85,13 @@ export const command: Command = {
             { name: 'Pending Matches to Void', value: String(pendingMatchCount), inline: true },
             { name: 'Ladder Sheet', value: 'All player rows will be cleared', inline: true },
             { name: 'Warnings to Clear', value: `${warnedPlayerCount} player(s)`, inline: true },
+            {
+              name: 'Season Archive',
+              value: currentSeason
+                ? `Ladder tab copied to \`${currentSeason.name}\` first`
+                : 'No prior season to archive',
+              inline: true,
+            },
           )
           .setFooter({ text: 'Expires in 5 minutes. Only you can confirm this action.' });
 
@@ -209,6 +216,18 @@ export const command: Command = {
         await redis.del(CacheKeys.queue());
         await redis.del(CacheKeys.ladder());
 
+        // 5b. Archive the closing season's ladder tab BEFORE clearing (non-fatal).
+        //     Duplicates the live Ladder tab to a season-named tab so builds/win%
+        //     stay available for reflection. Skipped if there is no active season.
+        let archivedTabName: string | null = null;
+        if (currentSeason) {
+          try {
+            archivedTabName = await archiveLadderTab(currentSeason.name);
+          } catch (archiveErr) {
+            console.error('[admin-season open] Ladder archive failed:', archiveErr);
+          }
+        }
+
         // 6. Clear the Ladder sheet (non-fatal)
         try {
           await clearLadderForNewSeason();
@@ -259,6 +278,13 @@ export const command: Command = {
                 { name: 'Players Reset', value: String(affectedPlayers.length), inline: true },
                 { name: 'Matches Voided', value: String(pendingMatches.length), inline: true },
                 { name: 'Warnings Cleared', value: String(warningsCleared), inline: true },
+                {
+                  name: 'Season Archived',
+                  value: archivedTabName
+                    ? `\`${archivedTabName}\` tab`
+                    : currentSeason ? 'Archive failed (see logs)' : 'N/A (no prior season)',
+                  inline: true,
+                },
               )
               .setTimestamp(),
           ],

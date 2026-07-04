@@ -452,6 +452,63 @@ export async function updateLadderResult(
 }
 
 /**
+ * Duplicates the live Ladder tab into a frozen archive tab named after the
+ * closing season (e.g. "Season 1"), preserving builds, W/L, win% and formatting.
+ * MUST be called BEFORE clearLadderForNewSeason so the live data is still present.
+ *
+ * The W%/TR_W%/Rank columns are same-row/same-sheet formulas (no absolute
+ * `Ladder!` cross-sheet refs), so duplicateSheet remaps them to the archived
+ * tab's own data — the standings freeze correctly without a value-flatten pass.
+ *
+ * Name collisions are resolved by suffixing " (2)", " (3)", ...
+ * Returns the final tab name that was actually created.
+ */
+export async function archiveLadderTab(seasonName: string): Promise<string> {
+  const sheets = getWriteClient();
+
+  // Resolve the Ladder tab's sheetId + index and gather existing tab titles
+  const meta = await sheets.spreadsheets.get({
+    spreadsheetId: config.google.sheetId,
+    fields: 'sheets(properties(sheetId,title,index))',
+  });
+  const props = (meta.data.sheets ?? [])
+    .map((s) => s.properties)
+    .filter((p): p is sheets_v4.Schema$SheetProperties => p != null);
+
+  const ladder = props.find((p) => p.title === LADDER_TAB);
+  if (!ladder || ladder.sheetId == null) {
+    throw new Error(`Ladder tab "${LADDER_TAB}" not found`);
+  }
+
+  // Compute a non-colliding archive tab name
+  const existingTitles = new Set(props.map((p) => p.title ?? ''));
+  let archiveName = seasonName;
+  let suffix = 2;
+  while (existingTitles.has(archiveName)) {
+    archiveName = `${seasonName} (${suffix++})`;
+  }
+
+  // Duplicate the sheet (preserves data + formatting + relative formulas)
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: config.google.sheetId,
+    requestBody: {
+      requests: [
+        {
+          duplicateSheet: {
+            sourceSheetId: ladder.sheetId,
+            insertSheetIndex: (ladder.index ?? 0) + 1,
+            newSheetName: archiveName,
+          },
+        },
+      ],
+    },
+  });
+
+  console.log(`[Ladder] archiveLadderTab: archived "${LADDER_TAB}" to "${archiveName}"`);
+  return archiveName;
+}
+
+/**
  * Clears all player rows from the Ladder sheet (rows 2+), preserving the header.
  * Called on season transition to give a clean slate for re-registration.
  * Uses values.clear so addPlayerToLadder's UUID scan still works correctly on the next registration.
