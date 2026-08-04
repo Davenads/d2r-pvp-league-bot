@@ -58,7 +58,7 @@ export const config = {
     // not count (they are frozen awaiting a mod, so counting them could lock the
     // pair out indefinitely).
     openMatchCapMax: parseInt(optionalEnv('OPEN_MATCH_CAP_MAX', '2'), 10),
-    matchCadenceDays: parseInt(optionalEnv('MATCH_CADENCE_DAYS', '3'), 10),
+    matchCadenceDays: parseInt(optionalEnv('MATCH_CADENCE_DAYS', '5'), 10),
   },
   isDev: optionalEnv('NODE_ENV', 'development') === 'development',
 } as const;
