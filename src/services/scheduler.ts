@@ -115,13 +115,31 @@ async function runCadenceCheck(client: Client): Promise<void> {
 
     // Find all ACTIVE players whose last match was before the cutoff,
     // or who have never played but registered long enough ago to be considered overdue.
+    //
+    // Post-vacation grace: a player whose vacation just expired (flipped to ACTIVE
+    // at the top of this run) would otherwise be force-assigned in the SAME cycle,
+    // because their lastMatchAt is stale — exactly the "still getting forced right
+    // after vacation" complaint. `hiatusUntil` is retained after a vacation ends, so
+    // `hiatusUntil >= cutoff` means the vacation ended less than one cadence window
+    // ago; those players get a full fresh window to return before being nudged.
+    // `hiatusUntil: null` (never took a vacation) is unaffected.
     const overduePlayers = await prisma.player.findMany({
       where: {
         seasonId: season.id,
         status: 'ACTIVE',
-        OR: [
-          { lastMatchAt: { lt: cutoff } },
-          { lastMatchAt: null, registeredAt: { lt: cutoff } },
+        AND: [
+          {
+            OR: [
+              { lastMatchAt: { lt: cutoff } },
+              { lastMatchAt: null, registeredAt: { lt: cutoff } },
+            ],
+          },
+          {
+            OR: [
+              { hiatusUntil: null },
+              { hiatusUntil: { lt: cutoff } },
+            ],
+          },
         ],
       },
       select: { discordId: true, discordUsername: true },

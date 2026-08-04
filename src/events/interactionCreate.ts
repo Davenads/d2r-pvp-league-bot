@@ -1323,9 +1323,16 @@ async function handleVacationRequest(interaction: ButtonInteraction): Promise<vo
     if (!eligible) {
       await interaction.editReply({
         embeds: [
-          buildErrorEmbed(
-            "You must play at least one match after returning from vacation before requesting another."
-          ),
+          new EmbedBuilder()
+            .setColor(Colors.Orange)
+            .setTitle(`${CAIN_EMOJI} Vacation Not Granted`)
+            .setDescription(
+              'You must **play at least one match** after returning from your last vacation before you can request another.\n\n' +
+              '**Important:** this request did **not** put you on vacation — you are still **active** on the ladder. ' +
+              "You'll keep receiving forced-match assignments (and warnings if they go unacknowledged) until you play a match.\n\n" +
+              'If you need time off now, play one match first, or ask a 1v1 moderator to grant a vacation for you.'
+            )
+            .setTimestamp(),
         ],
       });
       return;
