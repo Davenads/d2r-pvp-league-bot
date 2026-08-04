@@ -11,6 +11,7 @@ import { prisma } from '../../db/client.js';
 import { CHANNELS } from '../../config/channels.js';
 import { config } from '../../config.js';
 import { assertModRole } from '../../utils/modGuard.js';
+import { updatePlayerLadderStatus } from '../../services/ladder.js';
 
 export const command: Command = {
   data: new SlashCommandBuilder()
@@ -81,6 +82,17 @@ export const command: Command = {
           },
         }),
       ]);
+
+      // Mirror an auto-removal to the Ladder sheet so the player drops off the
+      // public leaderboard immediately (matches /withdraw and /admin-remove-player).
+      // Wrapped so a sheet failure still reports the successful DB removal.
+      if (autoRemove) {
+        try {
+          await updatePlayerLadderStatus(target.id, 'Removed');
+        } catch (sheetErr) {
+          console.warn(`[/admin-warn] Failed to sync 'Removed' status to sheet for ${target.id}:`, sheetErr);
+        }
+      }
 
       const embed = new EmbedBuilder()
         .setColor(autoRemove ? Colors.Red : Colors.Yellow)

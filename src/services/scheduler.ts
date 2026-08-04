@@ -27,6 +27,7 @@ import { prisma } from '../db/client.js';
 import { getForcedMatch, setForcedMatch, clearForcedMatch, setForcedMatchThread, getQueueList, getPlayerState, setPlayerState, hasActiveMatches } from './queue.js';
 import { archiveForcedThread } from '../utils/forcedThread.js';
 import { updateLeaderboardEmbed } from './leaderboardEmbed.js';
+import { updatePlayerLadderStatus } from './ladder.js';
 import { resolveMatchByReadyCheck } from './readyCheck.js';
 import { CHANNELS } from '../config/channels.js';
 import { ROLES } from '../config/roles.js';
@@ -320,6 +321,19 @@ async function runWarningEscalation(client: Client): Promise<void> {
           },
         }),
       ]);
+
+      // Mirror an auto-removal to the Ladder sheet so the player drops off the
+      // public leaderboard immediately. Without this, warning-threshold removals
+      // stayed `Available` in the sheet and kept showing in the standings —
+      // Stadium's bracket-drafting complaint. Wrapped so a sheet failure can't
+      // abort the rest of the escalation batch.
+      if (autoRemove) {
+        try {
+          await updatePlayerLadderStatus(player.discordId, 'Removed');
+        } catch (sheetErr) {
+          console.warn(`[Scheduler] Failed to sync 'Removed' status to sheet for ${player.discordId}:`, sheetErr);
+        }
+      }
 
       // Clear the forced match assignment so they can be re-evaluated next cycle
       await clearForcedMatch(player.discordId);
