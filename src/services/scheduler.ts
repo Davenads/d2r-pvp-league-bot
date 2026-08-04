@@ -139,6 +139,13 @@ async function runCadenceCheck(client: Client): Promise<void> {
       const existing = await getForcedMatch(player.discordId);
       if (existing) continue;
 
+      // Skip players who are already engaged — waiting in the queue for an
+      // opponent, or currently in a match. Forcing (and later warning) an active
+      // participant is exactly the false-positive Premo reported: a queued player
+      // who is doing what's asked but gets nudged and then warned anyway.
+      const state = await getPlayerState(player.discordId);
+      if (state === 'queued' || state === 'in_match') continue;
+
       // Issue the forced match assignment
       await setForcedMatch(player.discordId, { assignedAt: Date.now() });
       newlyNotified++;
@@ -273,6 +280,22 @@ async function runWarningEscalation(client: Client): Promise<void> {
     for (const player of activePlayers) {
       const forced = await getForcedMatch(player.discordId);
       if (!forced) continue;
+
+      // If the player has since joined the queue or entered a match, they've
+      // effectively acknowledged the assignment. Clear the stale flag and skip
+      // the warning — never penalize a player who is actively waiting to play.
+      // This closes the loop for the case where a player was already `queued`
+      // when the cadence job ran and could not acknowledge via the button.
+      const state = await getPlayerState(player.discordId);
+      if (state === 'queued' || state === 'in_match') {
+        await clearForcedMatch(player.discordId);
+        await archiveForcedThread(
+          client,
+          player.discordId,
+          '✅ Forced assignment closed — player is already in the queue.',
+        );
+        continue;
+      }
 
       // Check if the assignment is older than WARNING_DELAY_MS
       if (Date.now() - forced.assignedAt < WARNING_DELAY_MS) continue;

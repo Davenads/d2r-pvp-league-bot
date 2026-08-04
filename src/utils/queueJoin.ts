@@ -67,11 +67,11 @@ export async function executeQueueJoin(interaction: QueueInteraction): Promise<v
 
     const currentState = await getPlayerState(discordId);
 
-    if (currentState === 'queued') {
-      await interaction.editReply({ embeds: [buildErrorEmbed("You're already in the queue. Wait for an opponent.")] });
-      return;
-    }
-
+    // Clear any forced assignment up-front. Being in the queue — whether the
+    // player is joining now or was already waiting — counts as acknowledgment,
+    // so the warning escalation must never fire against them. Previously this
+    // ran AFTER the `queued` early-return below, so an already-queued player
+    // could never clear the flag and got warned every cycle (Premo's report).
     const forcedAssignment = await getForcedMatch(discordId);
     if (forcedAssignment) {
       await clearForcedMatch(discordId);
@@ -82,6 +82,23 @@ export async function executeQueueJoin(interaction: QueueInteraction): Promise<v
         discordId,
         '✅ Assignment acknowledged — player has joined the queue.',
       );
+    }
+
+    if (currentState === 'queued') {
+      await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(EMBED_COLORS.info)
+            .setTitle(`${CAIN_EMOJI} Already in Queue`)
+            .setDescription(
+              "You're already in the queue — hang tight for an opponent." +
+              (forcedAssignment
+                ? '\n\nYour forced match assignment has been acknowledged; you won\'t be warned for it.'
+                : '')
+            ),
+        ],
+      });
+      return;
     }
 
     const outcome = await joinQueue(discordId);
