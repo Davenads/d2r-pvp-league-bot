@@ -231,3 +231,56 @@ export async function postMatchBottomPanel(
     components: [reportRow, actionRow],
   });
 }
+
+/**
+ * Builds a per-recipient DM embed announcing a found match.
+ *
+ * Sent to BOTH players when a match is created so neither can miss it (players
+ * repeatedly reported not knowing they had a match — KIN-Jits request). The
+ * channel ping + private thread are easy to miss with notifications off.
+ *
+ * Recipient-centric: "You play X / Opponent plays Y", with FT2/FT4 stated from
+ * the recipient's side. No custom emojis — they can render as raw text in DMs.
+ *
+ * @param opts.threadUrl  Jump URL to the match thread, or null if creation failed
+ *                        (in which case the embed points the player to /report-win).
+ */
+export function buildMatchDmEmbed(opts: {
+  matchId: number;
+  recipientBuild: string;
+  opponentName: string;
+  opponentBuild: string;
+  matchType: 'STANDARD' | 'DEATHMATCH' | 'TOURNAMENT';
+  ft2Build?: string | null;
+  threadUrl: string | null;
+}): EmbedBuilder {
+  const { matchId, recipientBuild, opponentName, opponentBuild, matchType, ft2Build, threadUrl } = opts;
+
+  let matchTypeLine: string;
+  if (matchType === 'DEATHMATCH' && ft2Build) {
+    matchTypeLine = recipientBuild === ft2Build
+      ? 'Deathmatch — you play **FT2**, your opponent plays **FT4**'
+      : 'Deathmatch — you play **FT4**, your opponent plays **FT2**';
+  } else if (matchType === 'DEATHMATCH') {
+    matchTypeLine = 'Deathmatch — **First to 2 (FT2)**';
+  } else {
+    matchTypeLine = 'Standard — **First to 4 (FT4)**';
+  }
+
+  return new EmbedBuilder()
+    .setColor(Colors.Gold)
+    .setTitle(`D2R 1v1 League — Match #${matchId} Found`)
+    .setDescription(
+      `You've been matched against **${opponentName}**.\n\n` +
+      (threadUrl
+        ? `Head to your private match thread for full rules and to report the result:\n${threadUrl}`
+        : 'Your private match thread could not be created — use `/report-win` once the match is done, or contact a mod.'),
+    )
+    .addFields(
+      { name: 'You play', value: recipientBuild, inline: true },
+      { name: 'Opponent plays', value: opponentBuild, inline: true },
+      { name: 'Match Type', value: matchTypeLine, inline: false },
+    )
+    .setFooter({ text: 'The winner reports via the buttons in the thread or /report-win.' })
+    .setTimestamp();
+}

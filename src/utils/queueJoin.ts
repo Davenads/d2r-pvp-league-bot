@@ -19,7 +19,7 @@ import {
 } from '../services/queue.js';
 import { CHANNELS } from '../config/channels.js';
 import { ROLES } from '../config/roles.js';
-import { postAllBannedEmbed, postMatchAnnouncementEmbed } from './matchupUI.js';
+import { postAllBannedEmbed, postMatchAnnouncementEmbed, buildMatchDmEmbed } from './matchupUI.js';
 import { archiveForcedThread } from './forcedThread.js';
 
 type QueueInteraction = ChatInputCommandInteraction | ButtonInteraction;
@@ -234,6 +234,45 @@ export async function executeQueueJoin(interaction: QueueInteraction): Promise<v
         await resultsChannel.send({
           content: `<@${discordId}> <@${opponentDiscordId}> — you've been matched (Match **#${matchId}**: ${selectedMatchup.build1} vs ${selectedMatchup.build2}). The private thread could not be created. Use \`/report-win\` once done.`,
         });
+      }
+    }
+
+    // ── DM both duelers so they can't miss the match ─────────────────────────
+    // Players repeatedly reported not knowing they had a match — a channel ping
+    // and a silent thread-add are easy to miss with notifications off. Skip the
+    // allBanned path (no finalised pairing yet — the override flow resolves it).
+    if (!allBanned) {
+      const threadUrl = thread && interaction.guildId
+        ? `https://discord.com/channels/${interaction.guildId}/${thread.id}`
+        : null;
+
+      const joinerName = interaction.user.displayName ?? interaction.user.username;
+      const opponentName = opponentUser?.displayName ?? opponentUser?.username ?? 'your opponent';
+
+      const dmTargets = [
+        { id: discordId, recipientBuild: selectedMatchup.build1, opponentName, opponentBuild: selectedMatchup.build2 },
+        { id: opponentDiscordId, recipientBuild: selectedMatchup.build2, opponentName: joinerName, opponentBuild: selectedMatchup.build1 },
+      ];
+
+      for (const target of dmTargets) {
+        try {
+          const user = await interaction.client.users.fetch(target.id);
+          await user.send({
+            embeds: [
+              buildMatchDmEmbed({
+                matchId,
+                recipientBuild: target.recipientBuild,
+                opponentName: target.opponentName,
+                opponentBuild: target.opponentBuild,
+                matchType,
+                ft2Build,
+                threadUrl,
+              }),
+            ],
+          });
+        } catch {
+          // DMs closed — the channel ping + thread are the fallback.
+        }
       }
     }
 
