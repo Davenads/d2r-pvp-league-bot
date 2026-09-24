@@ -30,6 +30,7 @@ import {
   setPlayerState,
   getPlayerState,
   addActiveMatch,
+  removeFromQueue,
 } from '../../services/queue.js';
 import { CHANNELS } from '../../config/channels.js';
 import { ROLES } from '../../config/roles.js';
@@ -125,10 +126,13 @@ export const command: Command = {
       // Compute all allowed matchup combinations with deathmatch tagging
       const { available, allBanned } = await getAllowedMatchups(p1Record, p2Record);
 
-      // Set both players to in_match
+      // Set both players to in_match and scrub any stale queue entries so a later
+      // re-queue can't self-match against a leftover ID.
       await Promise.all([
         setPlayerState(p1User.id, 'in_match'),
         setPlayerState(p2User.id, 'in_match'),
+        removeFromQueue(p1User.id),
+        removeFromQueue(p2User.id),
       ]);
 
       // Thread name reflects match type

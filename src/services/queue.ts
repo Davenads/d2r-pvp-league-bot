@@ -210,6 +210,20 @@ export async function leaveQueue(discordId: string): Promise<boolean> {
   return false;
 }
 
+/**
+ * Removes a player from the queue list only — no state mutation.
+ *
+ * Used by flows that transition a player to `in_match` OUTSIDE the normal
+ * join/leave path (mirror consent, admin-force-match). Those flows set state
+ * directly; without also scrubbing the queue list, the player's ID can linger
+ * as a stale entry. When their match later resolves back to `idle`, a subsequent
+ * queue join would find that stale ID and match the player against themselves.
+ */
+export async function removeFromQueue(discordId: string): Promise<void> {
+  const redis = getRedisClient();
+  await redis.lrem(CacheKeys.queue(), 0, discordId);
+}
+
 // ── Build combination helpers ─────────────────────────────────────────────────
 
 type PlayerBuildsArg = {
@@ -311,6 +325,15 @@ export async function joinQueue(joinerDiscordId: string): Promise<QueueJoinOutco
   // the lrem so a skipped candidate stays in the queue untouched. Farming cap
   // (Redis) runs first so it short-circuits before the open-match DB query.
   for (const candidateId of queueList) {
+    // Never match a player against themselves. A stale self entry can linger in
+    // the queue when a flow transitions the player to in_match without dequeuing
+    // (mirror / admin-force), then that match resolves back to idle — leaving the
+    // ID in the list. Scrub it and skip so it can't produce a self-match.
+    if (candidateId === joinerDiscordId) {
+      await redis.lrem(queueKey, 0, candidateId);
+      continue;
+    }
+
     const capped = await isFarmingCapped(joinerDiscordId, candidateId);
     if (capped) continue;
 
@@ -337,6 +360,16 @@ export async function joinQueue(joinerDiscordId: string): Promise<QueueJoinOutco
     if (!joinerPlayer || !opponentPlayer) {
       // One of the players is invalid — put candidate back and queue the joiner
       await redis.lpush(queueKey, candidateId);
+      break;
+    }
+
+    // Defensive self-match guard: a Match with player1Id === player2Id must never
+    // reach Postgres. The self-skip above already prevents the common case (same
+    // Discord ID); this covers any pathological mapping where two IDs resolve to
+    // the same player record. Scrub the entry and fall through to enqueue the joiner.
+    if (joinerPlayer.id === opponentPlayer.id) {
+      console.error(`[joinQueue] Refusing self-match — joiner ${joinerDiscordId} and candidate ${candidateId} resolve to the same player record (${joinerPlayer.id}).`);
+      await redis.lrem(queueKey, 0, candidateId);
       break;
     }
 
@@ -562,6 +595,9 @@ export async function startMirrorMatch(
   });
 
   await Promise.all([
+    // Scrub any stale queue entries so a later re-queue can't self-match.
+    removeFromQueue(req.requesterId),
+    removeFromQueue(req.opponentId),
     addActiveMatch(match.id, req.requesterId, req.opponentId),
     setPlayerState(req.requesterId, 'in_match'),
     setPlayerState(req.opponentId, 'in_match'),
